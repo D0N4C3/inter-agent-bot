@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import logging
+import mimetypes
 from datetime import datetime, timezone
 
 import httpx
@@ -184,7 +185,24 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         async with httpx.AsyncClient(timeout=30) as client:
             file_resp = await client.get(file_url)
             file_resp.raise_for_status()
-        uploaded_url = upload_telegram_file(file_resp.content, file_ext, "applications")
+
+        guessed_type = mimetypes.guess_type(f"file.{file_ext}")[0]
+        content_type = guessed_type or "application/octet-stream"
+
+        if field == "id_front":
+            filename = f"front-id.{file_ext}"
+        elif field == "id_back":
+            filename = f"back-id.{file_ext}"
+        else:
+            filename = f"profile-photo.{file_ext}"
+
+        uploaded_url = upload_telegram_file(
+            file_resp.content,
+            folder=f"applications/{user_id}",
+            filename=filename,
+            content_type=content_type,
+            upsert=True,
+        )
 
         if field == "id_front":
             session["answers"]["id_file_front_url"] = uploaded_url
