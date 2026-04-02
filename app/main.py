@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import logging
 from datetime import datetime, timezone
 
 import httpx
@@ -18,6 +19,7 @@ from app.services import (
 )
 
 app = FastAPI(title="Inter Ethiopia Agent Registration Bot")
+logger = logging.getLogger(__name__)
 
 WELCOME_MESSAGE = """Welcome to Inter Ethiopia Solutions Agent Registration Bot
 
@@ -250,72 +252,76 @@ async def health() -> dict:
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request) -> dict:
-    update = await request.json()
-    message = update.get("message") or update.get("edited_message")
-    if not message:
+    try:
+        update = await request.json()
+        message = update.get("message") or update.get("edited_message")
+        if not message:
+            return {"ok": True}
+
+        chat_id = message["chat"]["id"]
+        user_id = message["from"]["id"]
+        text = message.get("text")
+
+        if text == "/start":
+            keyboard = [
+                ["Register as Sales Agent"],
+                ["Register as Installer"],
+                ["Register as Both"],
+                ["Check Application Status"],
+                ["Contact Support"],
+            ]
+            await send_message(chat_id, WELCOME_MESSAGE, keyboard=keyboard)
+            return {"ok": True}
+
+        if text in {"/help", "/contact", "Contact Support"}:
+            await send_message(chat_id, SUPPORT_MESSAGE)
+            return {"ok": True}
+
+        if text and (text.startswith("/status") or text == "Check Application Status"):
+            parts = text.split(maxsplit=1)
+            status = None
+            if len(parts) == 2:
+                status = get_latest_status_by_phone(parts[1].strip())
+            if status is None:
+                status = get_latest_status_by_telegram_user(str(user_id))
+
+            if status:
+                await send_message(chat_id, f"Your application status: {status}\nOur team will contact you soon.")
+            else:
+                await send_message(chat_id, "No application found yet. Use /register to submit your application.")
+            return {"ok": True}
+
+        if text == "/territory":
+            await send_message(chat_id, "Send /territory <TownOrVillage> to check if an area is reserved.")
+            return {"ok": True}
+
+        if text and text.startswith("/territory "):
+            territory = text.replace("/territory", "", 1).strip()
+            available = territory_is_available(territory)
+            if available:
+                await send_message(chat_id, "This territory is available.")
+            else:
+                await send_message(chat_id, "Sorry, this area is already reserved. Please select another nearby area.")
+            return {"ok": True}
+
+        if text == "/register":
+            await send_message(
+                chat_id,
+                "Choose your application type: Sales Agent / Installer Agent / Sales + Installer Agent",
+                keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
+            )
+            return {"ok": True}
+
+        if text in APPLICANT_TYPE_BY_BUTTON:
+            await start_registration(chat_id, user_id, APPLICANT_TYPE_BY_BUTTON[text])
+            return {"ok": True}
+
+        if user_id in sessions:
+            await process_registration_input(chat_id, user_id, text, message)
+            return {"ok": True}
+
+        await send_message(chat_id, "Use /start to begin.")
+    except Exception:
+        logger.exception("Failed to handle telegram webhook update.")
         return {"ok": True}
-
-    chat_id = message["chat"]["id"]
-    user_id = message["from"]["id"]
-    text = message.get("text")
-
-    if text == "/start":
-        keyboard = [
-            ["Register as Sales Agent"],
-            ["Register as Installer"],
-            ["Register as Both"],
-            ["Check Application Status"],
-            ["Contact Support"],
-        ]
-        await send_message(chat_id, WELCOME_MESSAGE, keyboard=keyboard)
-        return {"ok": True}
-
-    if text in {"/help", "/contact", "Contact Support"}:
-        await send_message(chat_id, SUPPORT_MESSAGE)
-        return {"ok": True}
-
-    if text and (text.startswith("/status") or text == "Check Application Status"):
-        parts = text.split(maxsplit=1)
-        status = None
-        if len(parts) == 2:
-            status = get_latest_status_by_phone(parts[1].strip())
-        if status is None:
-            status = get_latest_status_by_telegram_user(str(user_id))
-
-        if status:
-            await send_message(chat_id, f"Your application status: {status}\nOur team will contact you soon.")
-        else:
-            await send_message(chat_id, "No application found yet. Use /register to submit your application.")
-        return {"ok": True}
-
-    if text == "/territory":
-        await send_message(chat_id, "Send /territory <TownOrVillage> to check if an area is reserved.")
-        return {"ok": True}
-
-    if text and text.startswith("/territory "):
-        territory = text.replace("/territory", "", 1).strip()
-        available = territory_is_available(territory)
-        if available:
-            await send_message(chat_id, "This territory is available.")
-        else:
-            await send_message(chat_id, "Sorry, this area is already reserved. Please select another nearby area.")
-        return {"ok": True}
-
-    if text == "/register":
-        await send_message(
-            chat_id,
-            "Choose your application type: Sales Agent / Installer Agent / Sales + Installer Agent",
-            keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
-        )
-        return {"ok": True}
-
-    if text in APPLICANT_TYPE_BY_BUTTON:
-        await start_registration(chat_id, user_id, APPLICANT_TYPE_BY_BUTTON[text])
-        return {"ok": True}
-
-    if user_id in sessions:
-        await process_registration_input(chat_id, user_id, text, message)
-        return {"ok": True}
-
-    await send_message(chat_id, "Use /start to begin.")
     return {"ok": True}
