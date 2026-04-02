@@ -2,6 +2,9 @@ create schema if not exists inter_agent_apply;
 
 create extension if not exists "pgcrypto";
 
+grant usage on schema inter_agent_apply to anon, authenticated, service_role;
+grant create on schema inter_agent_apply to service_role;
+
 create table if not exists inter_agent_apply.agent_applications (
   application_id uuid primary key default gen_random_uuid(),
   telegram_user_id text not null,
@@ -47,3 +50,12 @@ create table if not exists inter_agent_apply.territories (
 
 create unique index if not exists uq_territories_location
   on inter_agent_apply.territories(region, zone, woreda, kebele, village);
+
+grant select, insert, update, delete on all tables in schema inter_agent_apply to anon, authenticated, service_role;
+grant usage, select on all sequences in schema inter_agent_apply to anon, authenticated, service_role;
+
+alter default privileges for role postgres in schema inter_agent_apply
+  grant select, insert, update, delete on tables to anon, authenticated, service_role;
+
+alter default privileges for role postgres in schema inter_agent_apply
+  grant usage, select on sequences to anon, authenticated, service_role;

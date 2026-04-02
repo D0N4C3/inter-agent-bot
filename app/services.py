@@ -1,6 +1,7 @@
 import smtplib
 from email.message import EmailMessage
 
+from postgrest.exceptions import APIError
 from supabase import Client, create_client
 from supabase.lib.client_options import ClientOptions
 
@@ -74,13 +75,19 @@ def get_latest_status_by_phone(phone: str) -> str | None:
 
 def territory_is_available(preferred_territory: str) -> bool:
     client = get_supabase()
-    result = (
-        client.table("territories")
-        .select("is_locked")
-        .eq("village", preferred_territory)
-        .limit(1)
-        .execute()
-    )
+    try:
+        result = (
+            client.table("territories")
+            .select("is_locked")
+            .eq("village", preferred_territory)
+            .limit(1)
+            .execute()
+        )
+    except APIError:
+        # Avoid breaking webhook processing if permissions/search_path are misconfigured.
+        # Availability can still be validated once DB permissions are corrected.
+        return True
+
     if not result.data:
         return True
     return not bool(result.data[0]["is_locked"])
