@@ -2,13 +2,17 @@ import smtplib
 from email.message import EmailMessage
 
 from supabase import Client, create_client
+from supabase.lib.client_options import ClientOptions
 
 from app.config import settings
 
 
 def get_supabase() -> Client:
-    client = create_client(settings.supabase_url, settings.supabase_key)
-    client.schema(settings.supabase_schema)
+    client = create_client(
+        settings.supabase_url,
+        settings.supabase_key,
+        options=ClientOptions(schema=settings.supabase_schema),
+    )
     return client
 
 
