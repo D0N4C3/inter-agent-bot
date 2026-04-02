@@ -1,6 +1,5 @@
 import smtplib
 from email.message import EmailMessage
-from uuid import uuid4
 
 from supabase import Client, create_client
 
@@ -13,13 +12,22 @@ def get_supabase() -> Client:
     return client
 
 
-def upload_telegram_file(file_bytes: bytes, extension: str, folder: str) -> str:
+def upload_telegram_file(
+    file_bytes: bytes,
+    folder: str,
+    filename: str,
+    content_type: str,
+    upsert: bool = False,
+) -> str:
     client = get_supabase()
-    path = f"{folder}/{uuid4()}.{extension}"
+    path = f"{folder}/{filename}"
     client.storage.from_(settings.supabase_storage_bucket).upload(
         path=path,
         file=file_bytes,
-        file_options={"upsert": "false"},
+        file_options={
+            "upsert": "true" if upsert else "false",
+            "content-type": content_type,
+        },
     )
     return client.storage.from_(settings.supabase_storage_bucket).get_public_url(path)
 
