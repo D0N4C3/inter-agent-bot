@@ -3,7 +3,7 @@
 Python + FastAPI Telegram webhook bot for Inter Ethiopia Solutions that:
 
 - Guides users through a full agent application flow.
-- Stores applications in Supabase (schema: `inter_agent_apply`).
+- Stores applications in Supabase (schema configurable with `SUPABASE_SCHEMA`, default: `public`).
 - Uploads ID files and optional profile photo to Supabase Storage.
 - Calculates qualification score + flag.
 - Sends submission email notification via SMTP.
@@ -49,7 +49,7 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 
 ## 4) Supabase SQL
 
-Run `sql/schema.sql` in Supabase SQL editor to create required schema/tables.
+Run `sql/schema.sql` in Supabase SQL editor to create required tables in your active schema.
 
 ## 5) Supported commands
 
@@ -91,4 +91,3 @@ Run `sql/schema.sql` in Supabase SQL editor to create required schema/tables.
 
 For backend/server usage with `supabase-py`, use a valid **Supabase `anon` JWT key** or **`service_role` / secret key** in `SUPABASE_KEY`.
 Do **not** use a `sb_publishable_...` key here, as it can fail with `SupabaseException: Invalid API key` in server-side Python clients.
-

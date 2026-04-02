@@ -1,8 +1,8 @@
-create schema if not exists inter_agent_apply;
-
 create extension if not exists "pgcrypto";
 
-create table if not exists inter_agent_apply.agent_applications (
+-- Run this in your existing Supabase schema context (for example `public`),
+-- or set `search_path` before executing if you use a custom schema.
+create table if not exists agent_applications (
   application_id uuid primary key default gen_random_uuid(),
   telegram_user_id text not null,
   full_name text not null,
@@ -29,12 +29,12 @@ create table if not exists inter_agent_apply.agent_applications (
 );
 
 create index if not exists idx_agent_applications_telegram_user
-  on inter_agent_apply.agent_applications (telegram_user_id);
+  on agent_applications (telegram_user_id);
 
 create index if not exists idx_agent_applications_phone
-  on inter_agent_apply.agent_applications (phone);
+  on agent_applications (phone);
 
-create table if not exists inter_agent_apply.territories (
+create table if not exists territories (
   territory_id uuid primary key default gen_random_uuid(),
   region text not null,
   zone text not null,
@@ -42,8 +42,8 @@ create table if not exists inter_agent_apply.territories (
   kebele text not null,
   village text not null,
   is_locked boolean not null default false,
-  assigned_application_id uuid references inter_agent_apply.agent_applications(application_id)
+  assigned_application_id uuid references agent_applications(application_id)
 );
 
 create unique index if not exists uq_territories_location
-  on inter_agent_apply.territories(region, zone, woreda, kebele, village);
+  on territories(region, zone, woreda, kebele, village);

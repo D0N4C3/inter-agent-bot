@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     supabase_url: str
     supabase_key: str
-    supabase_schema: str = "inter_agent_apply"
+    supabase_schema: str = "public"
     supabase_storage_bucket: str = "inter-agent"
 
     smtp_host: str
