@@ -80,6 +80,19 @@ QUESTION_FLOW = [
 sessions: dict[int, dict] = {}
 
 
+def start_keyboard_for_user(user_id: int) -> list[list[str]]:
+    keyboard = [
+        ["Register as Sales Agent"],
+        ["Register as Installer"],
+        ["Register as Both"],
+        ["Check Application Status"],
+        ["Contact Support"],
+    ]
+    if is_bot_admin(str(user_id)):
+        keyboard.insert(0, ["Admin Management"])
+    return keyboard
+
+
 async def telegram_api(method: str, payload: dict) -> dict:
     url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/{method}"
     async with httpx.AsyncClient(timeout=30) as client:
@@ -313,13 +326,7 @@ async def telegram_webhook(request: Request) -> dict:
         text = message.get("text")
 
         if text == "/start":
-            keyboard = [
-                ["Register as Sales Agent"],
-                ["Register as Installer"],
-                ["Register as Both"],
-                ["Check Application Status"],
-                ["Contact Support"],
-            ]
+            keyboard = start_keyboard_for_user(user_id)
             await send_message(chat_id, WELCOME_MESSAGE, keyboard=keyboard)
             return {"ok": True}
 
@@ -399,6 +406,24 @@ async def telegram_webhook(request: Request) -> dict:
                 chat_id,
                 "Choose your application type: Sales Agent / Installer Agent / Sales + Installer Agent",
                 keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
+            )
+            return {"ok": True}
+
+        if text in {"Admin Management", "/adminmenu"}:
+            if not is_bot_admin(str(user_id)):
+                await send_message(chat_id, "Only bot admins can access admin management.")
+                return {"ok": True}
+
+            dashboard_url = "/admin"
+            if settings.admin_dashboard_token:
+                dashboard_url = f"/admin?token={settings.admin_dashboard_token}"
+
+            await send_message(
+                chat_id,
+                "Admin management:\n"
+                f"- Dashboard (applications + filters): {dashboard_url}\n"
+                "- Assign admin: /addadmin <telegram_user_id>\n"
+                "- Bootstrap first admin (only when none exists): /send",
             )
             return {"ok": True}
 
