@@ -59,6 +59,13 @@ create unique index if not exists uq_territories_assigned_application
   on inter_agent_apply.territories(assigned_application_id)
   where assigned_application_id is not null;
 
+create table if not exists inter_agent_apply.bot_admins (
+  admin_id uuid primary key default gen_random_uuid(),
+  telegram_user_id text not null unique,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+
 grant select, insert, update, delete on all tables in schema inter_agent_apply to anon, authenticated, service_role;
 grant usage, select on all sequences in schema inter_agent_apply to anon, authenticated, service_role;
 
