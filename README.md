@@ -38,6 +38,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `/territory <region|zone|woreda|kebele|village>`
 - `/help`
 - `/contact`
+- `/send` (bootstrap first admin if none exists)
+- `/addadmin <telegram_user_id>` (admin only)
 
 ## 4) Admin dashboard
 

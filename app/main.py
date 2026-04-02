@@ -12,9 +12,12 @@ from fastapi.responses import HTMLResponse
 from app.config import settings
 from app.scoring import score_application
 from app.services import (
+    add_bot_admin,
+    count_admins,
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
     get_applications,
+    is_bot_admin,
     save_application,
     send_admin_telegram_alert,
     send_notification_email,
@@ -322,6 +325,41 @@ async def telegram_webhook(request: Request) -> dict:
 
         if text in {"/help", "/contact", "Contact Support"}:
             await send_message(chat_id, SUPPORT_MESSAGE)
+            return {"ok": True}
+
+        if text == "/send":
+            total_admins = count_admins()
+            if total_admins == 0:
+                add_bot_admin(str(user_id), created_by=str(user_id))
+                await send_message(chat_id, "You are now the first bot admin.")
+                return {"ok": True}
+
+            if not is_bot_admin(str(user_id)):
+                await send_message(chat_id, "Only bot admins can use /send.")
+                return {"ok": True}
+
+            await send_message(
+                chat_id,
+                "Admin command is active. To assign another admin, use:\n/addadmin <telegram_user_id>",
+            )
+            return {"ok": True}
+
+        if text and text.startswith("/addadmin"):
+            if not is_bot_admin(str(user_id)):
+                await send_message(chat_id, "Only bot admins can assign admins.")
+                return {"ok": True}
+
+            parts = text.split(maxsplit=1)
+            if len(parts) != 2 or not parts[1].strip().isdigit():
+                await send_message(chat_id, "Usage: /addadmin <telegram_user_id>")
+                return {"ok": True}
+
+            target_user_id = parts[1].strip()
+            created, _ = add_bot_admin(target_user_id, created_by=str(user_id))
+            if created:
+                await send_message(chat_id, f"User {target_user_id} is now a bot admin.")
+            else:
+                await send_message(chat_id, f"User {target_user_id} is already a bot admin.")
             return {"ok": True}
 
         if text and (text.startswith("/status") or text == "Check Application Status"):

@@ -103,6 +103,43 @@ def get_latest_status_by_phone(phone: str) -> str | None:
     return None
 
 
+def count_admins() -> int:
+    client = get_supabase()
+    result = client.table("bot_admins").select("telegram_user_id", count="exact").limit(1).execute()
+    return int(result.count or 0)
+
+
+def is_bot_admin(telegram_user_id: str) -> bool:
+    client = get_supabase()
+    result = (
+        client.table("bot_admins")
+        .select("telegram_user_id")
+        .eq("telegram_user_id", telegram_user_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
+
+
+def add_bot_admin(telegram_user_id: str, created_by: str | None = None) -> tuple[bool, dict]:
+    client = get_supabase()
+    existing = (
+        client.table("bot_admins")
+        .select("*")
+        .eq("telegram_user_id", telegram_user_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return False, existing.data[0]
+
+    payload: dict = {"telegram_user_id": telegram_user_id}
+    if created_by:
+        payload["created_by"] = created_by
+    inserted = client.table("bot_admins").insert(payload).execute()
+    return True, inserted.data[0]
+
+
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
     client = get_supabase()
     query = client.table("territories").select("region,zone,woreda,kebele,village").eq("is_locked", False)
