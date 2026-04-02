@@ -27,7 +27,8 @@ create table if not exists inter_agent_apply.agent_applications (
   profile_photo_url text,
   qualification_score integer not null,
   qualification_flag text not null,
-  status text not null default 'Submitted' check (status in ('Submitted', 'Under Review', 'Approved', 'Rejected', 'More Information Required')),
+  status text not null default 'Submitted' check (status in ('Submitted', 'Under Review', 'Approved', 'Rejected', 'More Info Required')),
+  admin_notes text,
   submitted_at timestamptz not null default now()
 );
 
@@ -36,6 +37,9 @@ create index if not exists idx_agent_applications_telegram_user
 
 create index if not exists idx_agent_applications_phone
   on inter_agent_apply.agent_applications (phone);
+
+create index if not exists idx_agent_applications_status
+  on inter_agent_apply.agent_applications (status);
 
 create table if not exists inter_agent_apply.territories (
   territory_id uuid primary key default gen_random_uuid(),
@@ -50,6 +54,10 @@ create table if not exists inter_agent_apply.territories (
 
 create unique index if not exists uq_territories_location
   on inter_agent_apply.territories(region, zone, woreda, kebele, village);
+
+create unique index if not exists uq_territories_assigned_application
+  on inter_agent_apply.territories(assigned_application_id)
+  where assigned_application_id is not null;
 
 grant select, insert, update, delete on all tables in schema inter_agent_apply to anon, authenticated, service_role;
 grant usage, select on all sequences in schema inter_agent_apply to anon, authenticated, service_role;

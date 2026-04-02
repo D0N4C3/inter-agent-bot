@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     smtp_from_email: str
     notification_email: str
 
+    admin_telegram_chat_id: str | None = None
+    admin_dashboard_token: str | None = None
+
     terms_text: str = (
         "I confirm that the information I provided is correct. "
         "I agree that Inter Ethiopia Solutions may review my application and contact me "

@@ -1,11 +1,21 @@
 import smtplib
 from email.message import EmailMessage
 
+import httpx
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
 from supabase.lib.client_options import ClientOptions
 
 from app.config import settings
+
+
+VALID_STATUSES = {
+    "Submitted",
+    "Under Review",
+    "Approved",
+    "Rejected",
+    "More Info Required",
+}
 
 
 def get_supabase() -> Client:
@@ -43,6 +53,26 @@ def save_application(record: dict) -> dict:
     return result.data[0]
 
 
+def get_application(application_id: str) -> dict | None:
+    client = get_supabase()
+    result = client.table("agent_applications").select("*").eq("application_id", application_id).limit(1).execute()
+    if result.data:
+        return result.data[0]
+    return None
+
+
+def get_applications(region: str | None = None, applicant_type: str | None = None, status: str | None = None) -> list[dict]:
+    client = get_supabase()
+    query = client.table("agent_applications").select("*").order("submitted_at", desc=True)
+    if region:
+        query = query.eq("region", region)
+    if applicant_type:
+        query = query.eq("applicant_type", applicant_type)
+    if status:
+        query = query.eq("status", status)
+    return query.execute().data or []
+
+
 def get_latest_status_by_telegram_user(telegram_user_id: str) -> str | None:
     client = get_supabase()
     result = (
@@ -73,24 +103,113 @@ def get_latest_status_by_phone(phone: str) -> str | None:
     return None
 
 
-def territory_is_available(preferred_territory: str) -> bool:
+def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
+    client = get_supabase()
+    query = client.table("territories").select("region,zone,woreda,kebele,village").eq("is_locked", False)
+    if region:
+        query = query.eq("region", region)
+    if zone:
+        query = query.eq("zone", zone)
+    if woreda:
+        query = query.eq("woreda", woreda)
+    return query.limit(10).execute().data or []
+
+
+def territory_is_available(
+    preferred_territory: str,
+    region: str | None = None,
+    zone: str | None = None,
+    woreda: str | None = None,
+    kebele: str | None = None,
+) -> bool:
     client = get_supabase()
     try:
-        result = (
-            client.table("territories")
-            .select("is_locked")
-            .eq("village", preferred_territory)
-            .limit(1)
-            .execute()
-        )
+        query = client.table("territories").select("is_locked").eq("village", preferred_territory)
+        if region:
+            query = query.eq("region", region)
+        if zone:
+            query = query.eq("zone", zone)
+        if woreda:
+            query = query.eq("woreda", woreda)
+        if kebele:
+            query = query.eq("kebele", kebele)
+
+        result = query.limit(1).execute()
     except APIError:
-        # Avoid breaking webhook processing if permissions/search_path are misconfigured.
-        # Availability can still be validated once DB permissions are corrected.
         return True
 
     if not result.data:
         return True
     return not bool(result.data[0]["is_locked"])
+
+
+def lock_territory_for_application(application_id: str, region: str, zone: str, woreda: str, kebele: str, village: str) -> None:
+    client = get_supabase()
+    lookup = (
+        client.table("territories")
+        .select("territory_id")
+        .eq("region", region)
+        .eq("zone", zone)
+        .eq("woreda", woreda)
+        .eq("kebele", kebele)
+        .eq("village", village)
+        .limit(1)
+        .execute()
+    )
+
+    territory_payload = {
+        "region": region,
+        "zone": zone,
+        "woreda": woreda,
+        "kebele": kebele,
+        "village": village,
+        "is_locked": True,
+        "assigned_application_id": application_id,
+    }
+
+    if lookup.data:
+        territory_id = lookup.data[0]["territory_id"]
+        client.table("territories").update(territory_payload).eq("territory_id", territory_id).execute()
+    else:
+        client.table("territories").insert(territory_payload).execute()
+
+
+def update_application_status(application_id: str, status: str, admin_notes: str | None = None, territory_village: str | None = None) -> dict:
+    if status not in VALID_STATUSES:
+        raise ValueError("Invalid status")
+
+    application = get_application(application_id)
+    if not application:
+        raise ValueError("Application not found")
+
+    updates: dict = {"status": status}
+    if admin_notes is not None:
+        updates["admin_notes"] = admin_notes
+
+    if status == "Approved":
+        village = territory_village or application["preferred_territory"]
+        if not territory_is_available(
+            village,
+            region=application["region"],
+            zone=application["zone"],
+            woreda=application["woreda"],
+            kebele=application["kebele"],
+        ):
+            raise ValueError("Territory already locked")
+
+        lock_territory_for_application(
+            application_id,
+            region=application["region"],
+            zone=application["zone"],
+            woreda=application["woreda"],
+            kebele=application["kebele"],
+            village=village,
+        )
+        updates["preferred_territory"] = village
+
+    result = client = get_supabase()
+    updated = client.table("agent_applications").update(updates).eq("application_id", application_id).execute()
+    return updated.data[0]
 
 
 def send_notification_email(application: dict) -> None:
@@ -133,3 +252,20 @@ Status: {application['status']}
         smtp.starttls()
         smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(msg)
+
+
+def send_admin_telegram_alert(application: dict) -> None:
+    if not settings.admin_telegram_chat_id:
+        return
+
+    text = (
+        "🚨 New Agent Application\n"
+        f"Name: {application['full_name']}\n"
+        f"Type: {application['applicant_type']}\n"
+        f"Region: {application['region']}\n"
+        f"Territory: {application['preferred_territory']}\n"
+        f"Score: {application['qualification_score']} ({application['qualification_flag']})"
+    )
+
+    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+    httpx.post(url, json={"chat_id": settings.admin_telegram_chat_id, "text": text}, timeout=20)
