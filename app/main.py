@@ -7,16 +7,22 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from app.config import settings
 from app.scoring import score_application
 from app.services import (
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
+    get_applications,
     save_application,
+    send_admin_telegram_alert,
     send_notification_email,
     territory_is_available,
+    update_application_status,
     upload_telegram_file,
+    VALID_STATUSES,
+    list_open_territories,
 )
 
 app = FastAPI(title="Inter Ethiopia Agent Registration Bot")
@@ -64,7 +70,7 @@ QUESTION_FLOW = [
     ("id_front", "Please upload your National ID front image/document."),
     ("id_back", "Please upload your National ID back image/document."),
     ("profile_photo", "Please upload profile photo (optional). Type skip to continue."),
-    ("preferred_territory", "Preferred territory?"),
+    ("preferred_territory", "Select or type your preferred territory (same town/village or nearby area)."),
     ("terms", f"{settings.terms_text}\n\nReply with: I Agree or Cancel"),
 ]
 
@@ -108,7 +114,23 @@ async def ask_next(chat_id: int, user_id: int) -> None:
     if index >= len(QUESTION_FLOW):
         await finalize_application(chat_id, user_id)
         return
-    _, prompt = QUESTION_FLOW[index]
+    field, prompt = QUESTION_FLOW[index]
+
+    if field == "preferred_territory":
+        answers = session["answers"]
+        options = list_open_territories(
+            region=answers.get("region"),
+            zone=answers.get("zone"),
+            woreda=answers.get("woreda"),
+        )
+        keyboard = []
+        for item in options[:6]:
+            keyboard.append([item["village"]])
+        if answers.get("village"):
+            keyboard.insert(0, [answers["village"]])
+        await send_message(chat_id, prompt, keyboard=keyboard or None)
+        return
+
     await send_message(chat_id, prompt)
 
 
@@ -116,7 +138,13 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     session = sessions[user_id]
     answers = session["answers"]
 
-    territory_valid = territory_is_available(answers["preferred_territory"])
+    territory_valid = territory_is_available(
+        answers["preferred_territory"],
+        region=answers.get("region"),
+        zone=answers.get("zone"),
+        woreda=answers.get("woreda"),
+        kebele=answers.get("kebele"),
+    )
     if not territory_valid:
         session["step_index"] = next(i for i, (k, _) in enumerate(QUESTION_FLOW) if k == "preferred_territory")
         await send_message(chat_id, "Sorry, this area is already reserved. Please select another nearby area.")
@@ -152,6 +180,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
 
     save_application(record)
     send_notification_email(record)
+    send_admin_telegram_alert(record)
     await send_message(chat_id, "Your application has been submitted successfully.\nOur team will review it and contact you soon.")
     sessions.pop(user_id, None)
 
@@ -315,7 +344,12 @@ async def telegram_webhook(request: Request) -> dict:
 
         if text and text.startswith("/territory "):
             territory = text.replace("/territory", "", 1).strip()
-            available = territory_is_available(territory)
+            parts = [p.strip() for p in territory.split("|")]
+            if len(parts) == 5:
+                region, zone, woreda, kebele, village = parts
+                available = territory_is_available(village, region=region, zone=zone, woreda=woreda, kebele=kebele)
+            else:
+                available = territory_is_available(territory)
             if available:
                 await send_message(chat_id, "This territory is available.")
             else:
@@ -343,3 +377,86 @@ async def telegram_webhook(request: Request) -> dict:
         logger.exception("Failed to handle telegram webhook update.")
         return {"ok": True}
     return {"ok": True}
+
+
+def _require_admin(request: Request) -> None:
+    expected = settings.admin_dashboard_token
+    if not expected:
+        return
+    provided = request.query_params.get("token") or request.headers.get("x-admin-token")
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    region: str | None = None,
+    applicant_type: str | None = None,
+    status: str | None = None,
+) -> HTMLResponse:
+    _require_admin(request)
+    apps = get_applications(region=region, applicant_type=applicant_type, status=status)
+
+    rows = []
+    for app_row in apps:
+        rows.append(
+            f"""
+            <tr>
+                <td>{app_row['application_id']}</td>
+                <td>{app_row['full_name']}</td>
+                <td>{app_row['region']}</td>
+                <td>{app_row['applicant_type']}</td>
+                <td>{app_row['status']}</td>
+                <td><a href=\"{app_row['id_file_front_url']}\" target=\"_blank\">Front</a> |
+                    <a href=\"{app_row['id_file_back_url']}\" target=\"_blank\">Back</a> |
+                    <a href=\"{app_row.get('profile_photo_url') or '#'}\" target=\"_blank\">Profile</a></td>
+                <td>
+                    <form method=\"post\" action=\"/admin/applications/{app_row['application_id']}/status?token={request.query_params.get('token','')}\">
+                        <select name=\"status\">{''.join([f'<option value="{s}">{s}</option>' for s in sorted(VALID_STATUSES)])}</select>
+                        <input name=\"territory_village\" placeholder=\"territory\" value=\"{app_row['preferred_territory']}\" />
+                        <input name=\"admin_notes\" placeholder=\"internal notes\" value=\"{app_row.get('admin_notes') or ''}\" />
+                        <button type=\"submit\">Update</button>
+                    </form>
+                </td>
+            </tr>
+            """
+        )
+
+    html = f"""
+    <html><body>
+    <h2>Agent Applications Dashboard</h2>
+    <form method=\"get\" action=\"/admin\">
+      <input type=\"hidden\" name=\"token\" value=\"{request.query_params.get('token', '')}\" />
+      <input name=\"region\" value=\"{region or ''}\" placeholder=\"Region\" />
+      <input name=\"applicant_type\" value=\"{applicant_type or ''}\" placeholder=\"Type\" />
+      <input name=\"status\" value=\"{status or ''}\" placeholder=\"Status\" />
+      <button type=\"submit\">Filter</button>
+    </form>
+    <table border=\"1\" cellpadding=\"6\">
+      <tr><th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Status</th><th>Uploads</th><th>Actions</th></tr>
+      {''.join(rows)}
+    </table>
+    </body></html>
+    """
+    return HTMLResponse(content=html)
+
+
+@app.post("/admin/applications/{application_id}/status")
+async def admin_update_status(
+    application_id: str,
+    request: Request,
+) -> dict:
+    _require_admin(request)
+    form = await request.form()
+    status = str(form.get("status") or "").strip()
+    notes = str(form.get("admin_notes") or "").strip() or None
+    territory_village = str(form.get("territory_village") or "").strip() or None
+
+    updated = update_application_status(
+        application_id=application_id,
+        status=status,
+        admin_notes=notes,
+        territory_village=territory_village,
+    )
+    return {"ok": True, "application": updated}

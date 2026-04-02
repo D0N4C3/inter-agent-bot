@@ -7,56 +7,49 @@ class ScoreResult:
     qualification_flag: str
 
 
-def classify_score(score: int, label: str) -> str:
-    if score >= 5:
-        return f"Strong {label}"
-    if score >= 3:
-        return f"Medium {label}"
-    return "Manual Review Required"
-
-
 def score_application(payload: dict) -> ScoreResult:
-    address_complete = all(
-        payload.get(field)
-        for field in ["region", "zone", "woreda", "kebele", "village", "phone"]
-    )
+    address_complete = all(payload.get(field) for field in ["region", "zone", "woreda", "kebele", "village", "phone"])
+    experience_years = int(payload.get("experience_years") or 0)
 
     sales_score = 0
     installer_score = 0
 
     if payload.get("experience"):
-        sales_score += 2
-        installer_score += 2
+        sales_score += 25
+        installer_score += 25
 
     if payload.get("has_shop"):
-        sales_score += 2
+        sales_score += 25
 
     if address_complete:
-        sales_score += 1
+        sales_score += 15
 
     if payload.get("territory_valid", True):
-        sales_score += 1
+        sales_score += 20
+
+    if "sales" in str(payload.get("work_type", "")).lower():
+        sales_score += 15
 
     if payload.get("can_install"):
-        installer_score += 3
+        installer_score += 35
 
     if payload.get("id_file_front_url") and payload.get("id_file_back_url"):
-        installer_score += 1
+        installer_score += 20
+
+    installer_score += min(experience_years * 4, 20)
 
     applicant_type = payload.get("applicant_type")
-    if applicant_type == "sales_only":
-        total = sales_score
-        flag = classify_score(total, "Sales Candidate")
-    elif applicant_type == "installer_only":
-        total = installer_score
-        flag = classify_score(total, "Installer Candidate")
-    else:
-        total = max(sales_score, installer_score)
-        if total >= 5:
-            flag = "Strong Hybrid Candidate"
-        elif total >= 3:
-            flag = "Medium Hybrid Candidate"
-        else:
-            flag = "Manual Review Required"
 
+    if sales_score >= 70 and installer_score >= 70:
+        flag = "Strong Hybrid"
+    elif applicant_type == "sales_only" and sales_score >= 70:
+        flag = "Strong Sales Candidate"
+    elif applicant_type == "installer_only" and installer_score >= 70:
+        flag = "Strong Installer Candidate"
+    elif max(sales_score, installer_score) >= 50:
+        flag = "Hybrid"
+    else:
+        flag = "Manual Review"
+
+    total = max(sales_score, installer_score)
     return ScoreResult(qualification_score=total, qualification_flag=flag)
