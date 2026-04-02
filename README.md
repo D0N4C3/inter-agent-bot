@@ -86,3 +86,9 @@ Run `sql/schema.sql` in Supabase SQL editor to create required schema/tables.
 - Territory availability is checked before final save.
 - If locked, user is asked to choose another territory.
 - Status values expected: `Submitted`, `Under Review`, `Approved`, `Rejected`, `More Information Required`.
+
+## 8) Supabase key requirement
+
+For backend/server usage with `supabase-py`, use a valid **Supabase `anon` JWT key** or **`service_role` / secret key** in `SUPABASE_KEY`.
+Do **not** use a `sb_publishable_...` key here, as it can fail with `SupabaseException: Invalid API key` in server-side Python clients.
+
