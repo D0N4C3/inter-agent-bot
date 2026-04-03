@@ -38,8 +38,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `/territory <region|zone|woreda|kebele|village>`
 - `/help`
 - `/contact`
+- `/admin` (opens admin management menu for bot admins)
 - `/send` (bootstrap first admin if none exists)
 - `/addadmin <telegram_user_id>` (admin only)
+
+Main Telegram menu also includes:
+
+- Check Territory Availability
+- Contact Support options (Phone / WhatsApp / Email)
+- Admin Management submenu for bot admins (view/filter/update/add admin/dashboard link)
 
 ## 4) Admin dashboard
 
