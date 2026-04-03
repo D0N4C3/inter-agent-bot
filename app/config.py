@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         "I agree that Inter Ethiopia Solutions may review my application and contact me "
         "regarding agent opportunities."
     )
+    expected_review_timeline: str = "Our team typically responds within 3-5 business days."
+    max_upload_size_mb: int = 8
 
     @field_validator(
         "telegram_bot_token",
