@@ -82,6 +82,10 @@ def tr(user_id: int, key: str) -> str:
     lang = sessions.get(user_id, {}).get("language", "en")
     return I18N.get(lang, I18N["en"]).get(key, I18N["en"].get(key, key))
 
+
+def language_selection_pending(user_id: int) -> bool:
+    return sessions.get(user_id, {}).get("awaiting_language", False)
+
 APPLICANT_TYPE_BY_BUTTON = {
     "Register as Sales Agent": "sales_only",
     "Register as Installer": "installer_only",
@@ -565,17 +569,21 @@ async def telegram_webhook(request: Request) -> dict:
         text = message.get("text")
 
         if text == "/start":
-            if user_id not in sessions:
-                sessions[user_id] = {"language": "en"}
+            sessions.setdefault(user_id, {})
+            sessions[user_id]["language"] = sessions[user_id].get("language", "en")
+            sessions[user_id]["awaiting_language"] = True
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
-            keyboard = start_keyboard_for_user(user_id)
-            await send_message(chat_id, tr(user_id, "welcome"), keyboard=keyboard)
             return {"ok": True}
 
         if text in {"English", "አማርኛ"}:
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = "en" if text == "English" else "am"
+            sessions[user_id]["awaiting_language"] = False
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
+            return {"ok": True}
+
+        if language_selection_pending(user_id):
+            await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return {"ok": True}
 
         if text in {"/help", "/contact", "Contact Support"}:
