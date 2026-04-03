@@ -369,5 +369,28 @@ def send_admin_telegram_alert(application: dict) -> None:
         f"Score: {application['qualification_score']} ({application['qualification_flag']})"
     )
 
-    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
-    httpx.post(url, json={"chat_id": settings.admin_telegram_chat_id, "text": text}, timeout=20)
+    base_url = f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+    httpx.post(f"{base_url}/sendMessage", json={"chat_id": settings.admin_telegram_chat_id, "text": text}, timeout=20)
+
+    uploads = [
+        ("ID Front", application.get("id_file_front_url")),
+        ("ID Back", application.get("id_file_back_url")),
+        ("Profile Photo", application.get("profile_photo_url")),
+    ]
+    for label, file_url in uploads:
+        if not file_url:
+            continue
+        cleaned = file_url.lower().split("?")[0]
+        is_image = cleaned.endswith((".jpg", ".jpeg", ".png", ".webp"))
+        if is_image:
+            httpx.post(
+                f"{base_url}/sendPhoto",
+                json={"chat_id": settings.admin_telegram_chat_id, "photo": file_url, "caption": label},
+                timeout=20,
+            )
+        else:
+            httpx.post(
+                f"{base_url}/sendMessage",
+                json={"chat_id": settings.admin_telegram_chat_id, "text": f"{label}: {file_url}"},
+                timeout=20,
+            )
