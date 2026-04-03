@@ -5,6 +5,7 @@ import mimetypes
 import re
 import secrets
 from datetime import datetime, timezone
+from html import escape
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -173,6 +174,39 @@ def _format_application_summary(app_row: dict) -> str:
     )
 
 
+def _is_image_url(url: str | None) -> bool:
+    if not url:
+        return False
+    return url.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp"))
+
+
+async def send_application_preview(chat_id: int, app_row: dict) -> None:
+    summary = (
+        "🧾 Application Snapshot\n"
+        f"ID: {app_row['application_id']}\n"
+        f"👤 Name: {app_row['full_name']}\n"
+        f"🧭 Type: {app_row['applicant_type']}\n"
+        f"🔖 Status: {app_row['status']}\n"
+        f"📍 Region: {app_row['region']}\n"
+        f"🗺️ Territory: {app_row['preferred_territory']}\n"
+        f"📊 Score: {app_row.get('qualification_score', 'N/A')} ({app_row.get('qualification_flag', 'N/A')})"
+    )
+    await send_message(chat_id, summary)
+
+    uploads = [
+        ("ID Front", app_row.get("id_file_front_url")),
+        ("ID Back", app_row.get("id_file_back_url")),
+        ("Profile", app_row.get("profile_photo_url")),
+    ]
+    for label, url in uploads:
+        if not url:
+            continue
+        if _is_image_url(url):
+            await send_photo(chat_id, url, caption=label)
+        else:
+            await send_message(chat_id, f"{label}: {url}")
+
+
 async def telegram_api(method: str, payload: dict) -> dict:
     url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/{method}"
     async with httpx.AsyncClient(timeout=30) as client:
@@ -193,6 +227,13 @@ async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None
             "one_time_keyboard": False,
         }
     await telegram_api("sendMessage", payload)
+
+
+async def send_photo(chat_id: int, photo_url: str, caption: str | None = None) -> None:
+    payload: dict = {"chat_id": chat_id, "photo": photo_url}
+    if caption:
+        payload["caption"] = caption
+    await telegram_api("sendPhoto", payload)
 
 
 def parse_yes_no(value: str) -> bool:
@@ -442,8 +483,9 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
         if not apps:
             await send_message(chat_id, "No applications matched your filter.")
         else:
-            previews = "\n\n---\n\n".join(_format_application_summary(item) for item in apps[:5])
-            await send_message(chat_id, f"Top matches:\n\n{previews}")
+            await send_message(chat_id, f"Top matches: {len(apps)} (showing up to 5 with media previews).")
+            for item in apps[:5]:
+                await send_application_preview(chat_id, item)
         admin_sessions.pop(user_id, None)
         await show_admin_menu(chat_id, user_id)
         return True
@@ -693,8 +735,9 @@ async def telegram_webhook(request: Request) -> dict:
             if not apps:
                 await send_message(chat_id, "No applications yet.")
                 return {"ok": True}
-            previews = "\n\n---\n\n".join(_format_application_summary(item) for item in apps)
-            await send_message(chat_id, f"Recent applications:\n\n{previews}")
+            await send_message(chat_id, "Recent applications (premium preview mode):")
+            for item in apps:
+                await send_application_preview(chat_id, item)
             return {"ok": True}
 
         if text == "Filter Applications":
@@ -789,22 +832,40 @@ async def admin_dashboard(
 
     rows = []
     for app_row in apps:
+        profile_url = app_row.get("profile_photo_url")
+        uploads = []
+        for label, url in (
+            ("Front ID", app_row.get("id_file_front_url")),
+            ("Back ID", app_row.get("id_file_back_url")),
+            ("Profile", profile_url),
+        ):
+            if not url:
+                continue
+            safe_url = escape(url, quote=True)
+            if _is_image_url(url):
+                uploads.append(
+                    f'<a class="thumb-link" href="{safe_url}" target="_blank" rel="noopener">'
+                    f'<img src="{safe_url}" alt="{escape(label)}" class="thumb" /></a>'
+                )
+            else:
+                uploads.append(f'<a href="{safe_url}" target="_blank" rel="noopener">{escape(label)}</a>')
+
         rows.append(
             f"""
-            <tr>
-                <td>{app_row['application_id']}</td>
-                <td>{app_row['full_name']}</td>
-                <td>{app_row['region']}</td>
-                <td>{app_row['applicant_type']}</td>
-                <td>{app_row['status']}</td>
-                <td><a href=\"{app_row['id_file_front_url']}\" target=\"_blank\">Front</a> |
-                    <a href=\"{app_row['id_file_back_url']}\" target=\"_blank\">Back</a> |
-                    <a href=\"{app_row.get('profile_photo_url') or '#'}\" target=\"_blank\">Profile</a></td>
+            <tr class="app-row">
+                <td>{escape(app_row['application_id'])}</td>
+                <td>{escape(app_row['full_name'])}</td>
+                <td>{escape(app_row['region'])}</td>
+                <td>{escape(app_row['applicant_type'])}</td>
+                <td><span class="status-badge">{escape(app_row['status'])}</span></td>
                 <td>
-                    <form method=\"post\" action=\"/admin/applications/{app_row['application_id']}/status?token={request.query_params.get('token','')}\">
+                    <div class="uploads">{''.join(uploads) if uploads else '<span class="muted">No uploads</span>'}</div>
+                </td>
+                <td>
+                    <form method=\"post\" action=\"/admin/applications/{escape(app_row['application_id'])}/status?token={request.query_params.get('token','')}\">
                         <select name=\"status\">{''.join([f'<option value="{s}">{s}</option>' for s in sorted(VALID_STATUSES)])}</select>
-                        <input name=\"territory_village\" placeholder=\"territory\" value=\"{app_row['preferred_territory']}\" />
-                        <input name=\"admin_notes\" placeholder=\"internal notes\" value=\"{app_row.get('admin_notes') or ''}\" />
+                        <input name=\"territory_village\" placeholder=\"territory\" value=\"{escape(app_row['preferred_territory'])}\" />
+                        <input name=\"admin_notes\" placeholder=\"internal notes\" value=\"{escape(app_row.get('admin_notes') or '')}\" />
                         <button type=\"submit\">Update</button>
                     </form>
                 </td>
@@ -813,8 +874,24 @@ async def admin_dashboard(
         )
 
     html = f"""
-    <html><body>
-    <h2>Agent Applications Dashboard</h2>
+    <html><head><style>
+    body {{
+      font-family: Inter, Arial, sans-serif; background: #f4f7fb; color: #1b2430; margin: 0; padding: 24px;
+    }}
+    .card {{ background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 8px 20px rgba(27,36,48,.08); }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
+    th, td {{ border-bottom: 1px solid #e9eef5; padding: 10px; vertical-align: top; text-align: left; }}
+    th {{ background: #f8fafe; }}
+    .uploads {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    .thumb {{ width: 74px; height: 74px; border-radius: 10px; object-fit: cover; border: 1px solid #d7e0ed; }}
+    .status-badge {{ background: #ebf5ff; color: #165dff; border-radius: 999px; padding: 4px 10px; font-size: 12px; }}
+    form {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    input, select, button {{ padding: 8px; border-radius: 8px; border: 1px solid #d7e0ed; }}
+    button {{ background: #165dff; color: #fff; border: none; cursor: pointer; }}
+    .muted {{ color: #8a94a3; }}
+    </style></head><body>
+    <div class="card">
+    <h2>✨ Agent Applications Dashboard</h2>
     <form method=\"get\" action=\"/admin\">
       <input type=\"hidden\" name=\"token\" value=\"{request.query_params.get('token', '')}\" />
       <input name=\"region\" value=\"{region or ''}\" placeholder=\"Region\" />
@@ -822,11 +899,11 @@ async def admin_dashboard(
       <input name=\"status\" value=\"{status or ''}\" placeholder=\"Status\" />
       <button type=\"submit\">Filter</button>
     </form>
-    <table border=\"1\" cellpadding=\"6\">
+    <table>
       <tr><th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Status</th><th>Uploads</th><th>Actions</th></tr>
       {''.join(rows)}
     </table>
-    </body></html>
+    </div></body></html>
     """
     return HTMLResponse(content=html)
 
