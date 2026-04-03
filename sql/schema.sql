@@ -66,6 +66,40 @@ create table if not exists inter_agent_apply.bot_admins (
   created_at timestamptz not null default now()
 );
 
+create table if not exists inter_agent_apply.application_drafts (
+  draft_id uuid primary key default gen_random_uuid(),
+  telegram_user_id text not null unique,
+  applicant_type text not null check (applicant_type in ('sales_only', 'installer_only', 'sales_installer')),
+  language text not null default 'en',
+  step_index integer not null default 0,
+  answers jsonb not null default '{}'::jsonb,
+  reminder_sent_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create or replace function inter_agent_apply.set_application_draft_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_application_drafts_updated_at on inter_agent_apply.application_drafts;
+create trigger trg_application_drafts_updated_at
+before update on inter_agent_apply.application_drafts
+for each row execute function inter_agent_apply.set_application_draft_updated_at();
+
+create or replace function inter_agent_apply.get_stale_application_drafts(cutoff_hours integer default 24)
+returns setof inter_agent_apply.application_drafts
+language sql
+as $$
+  select *
+  from inter_agent_apply.application_drafts
+  where updated_at < (now() - make_interval(hours => cutoff_hours))
+    and (reminder_sent_at is null or reminder_sent_at < updated_at);
+$$;
+
 grant select, insert, update, delete on all tables in schema inter_agent_apply to anon, authenticated, service_role;
 grant usage, select on all sequences in schema inter_agent_apply to anon, authenticated, service_role;
 

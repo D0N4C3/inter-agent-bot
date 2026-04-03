@@ -1,4 +1,4 @@
-# Inter Ethiopia Agent Registration Bot (Phase 2)
+# Inter Ethiopia Agent Registration Bot (Phase 3)
 
 Python + FastAPI Telegram webhook bot for Inter Ethiopia Solutions with:
 
@@ -8,6 +8,9 @@ Python + FastAPI Telegram webhook bot for Inter Ethiopia Solutions with:
 - Admin dashboard for operations and approvals.
 - Territory locking on approval.
 - SMTP email + Telegram admin alerts for new applications.
+- English + Amharic language selection for user-facing flow.
+- Incomplete application draft recovery + reminder job endpoint.
+- File validation (size/format) and safer randomized storage filenames.
 
 ## 1) Setup
 
@@ -33,6 +36,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 - `/start`
 - `/register`
+- language selection via `/start` then choosing **English** or **አማርኛ**
 - `/status` (or `/status <phone>`)
 - `/territory` and `/territory <village>`
 - `/territory <region|zone|woreda|kebele|village>`
@@ -47,6 +51,10 @@ Main Telegram menu also includes:
 - Check Territory Availability
 - Contact Support options (Phone / WhatsApp / Email)
 - Admin Management submenu for bot admins (view/filter/update/add admin/dashboard link)
+
+Background job endpoint:
+
+- `POST /jobs/remind-incomplete` (sends reminder messages for stale drafts).
 
 ## 4) Admin dashboard
 

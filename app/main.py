@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import re
 import logging
 import mimetypes
+import re
+import secrets
 from datetime import datetime, timezone
 
 import httpx
@@ -14,12 +15,17 @@ from app.scoring import score_application
 from app.services import (
     add_bot_admin,
     count_admins,
+    delete_application_draft,
+    get_application_draft,
     get_application,
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
     get_applications,
+    get_stale_drafts,
     is_bot_admin,
+    mark_draft_reminder_sent,
     save_application,
+    save_application_draft,
     send_admin_telegram_alert,
     send_notification_email,
     territory_is_available,
@@ -32,25 +38,49 @@ from app.services import (
 app = FastAPI(title="Inter Ethiopia Agent Registration Bot")
 logger = logging.getLogger(__name__)
 
-WELCOME_MESSAGE = """Welcome to Inter Ethiopia Solutions Agent Registration Bot
+SUPPORTED_LANGUAGES = {"en", "am"}
+ETHIOPIA_REGIONS = [
+    "Addis Ababa",
+    "Amhara",
+    "Oromia",
+    "Tigray",
+    "Sidama",
+    "SNNPR",
+    "Afar",
+    "Somali",
+    "Dire Dawa",
+]
+YES_NO_KEYBOARD = [["Yes", "No"]]
+YES_NO_KEYBOARD_AM = [["አዎ", "አይደለም"]]
+LANGUAGE_KEYBOARD = [["English", "አማርኛ"]]
 
-You can apply as:
-Solar Sales Agent
-Solar Installer Agent
-Sales + Installer Agent
+I18N = {
+    "en": {
+        "welcome": "Welcome to Inter Ethiopia Solutions Agent Registration Bot\n\nPlease choose your application type below.",
+        "support": "For support, contact Inter Ethiopia Solutions\nEmail: agentapply@internethiopia.com\nPhone: +251XXXXXXXXX\nWhatsApp: +251XXXXXXXXX",
+        "choose_language": "Please choose your language / ቋንቋ ይምረጡ",
+        "resume_prompt": "You have an incomplete application. Would you like to resume where you stopped?",
+        "resume_yes": "Resume Application",
+        "resume_no": "Start New Application",
+        "submitted": "Your application has been submitted successfully.",
+        "timeline": settings.expected_review_timeline,
+    },
+    "am": {
+        "welcome": "እንኳን ወደ Inter Ethiopia Solutions የወኪል ምዝገባ ቦት በደህና መጡ።\n\nእባክዎ የማመልከቻ አይነት ይምረጡ።",
+        "support": "ለእገዛ Inter Ethiopia Solutions ያግኙ\nኢሜይል: agentapply@internethiopia.com\nስልክ: +251XXXXXXXXX\nዋትስአፕ: +251XXXXXXXXX",
+        "choose_language": "Please choose your language / ቋንቋ ይምረጡ",
+        "resume_prompt": "ያልተጠናቀቀ ማመልከቻ አለዎት። ከተወውበት ቦታ መቀጠል ይፈልጋሉ?",
+        "resume_yes": "ማመልከቻ ቀጥል",
+        "resume_no": "አዲስ ጀምር",
+        "submitted": "ማመልከቻዎ በተሳካ ሁኔታ ተልኳል።",
+        "timeline": "ቡድናችን በ3-5 የስራ ቀናት ውስጥ ምላሽ ይሰጣል።",
+    },
+}
 
-Benefits:
-Commission opportunity
-Training
-Promotional support
-Area-based registration
 
-Please choose your application type below."""
-
-SUPPORT_MESSAGE = """For support, contact Inter Ethiopia Solutions
-Email: agentapply@internethiopia.com
-Phone: +251XXXXXXXXX
-WhatsApp: +251XXXXXXXXX"""
+def tr(user_id: int, key: str) -> str:
+    lang = sessions.get(user_id, {}).get("language", "en")
+    return I18N.get(lang, I18N["en"]).get(key, I18N["en"].get(key, key))
 
 APPLICANT_TYPE_BY_BUTTON = {
     "Register as Sales Agent": "sales_only",
@@ -163,7 +193,12 @@ async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None
 
 def parse_yes_no(value: str) -> bool:
     normalized = value.strip().lower()
-    return normalized in {"yes", "y", "true"}
+    return normalized in {"yes", "y", "true", "አዎ"}
+
+
+def yes_no_keyboard(user_id: int) -> list[list[str]]:
+    lang = sessions.get(user_id, {}).get("language", "en")
+    return YES_NO_KEYBOARD_AM if lang == "am" else YES_NO_KEYBOARD
 
 
 def phone_is_valid(phone: str) -> bool:
@@ -177,6 +212,20 @@ async def ask_next(chat_id: int, user_id: int) -> None:
         await finalize_application(chat_id, user_id)
         return
     field, prompt = QUESTION_FLOW[index]
+    if field in {"experience", "has_shop", "can_install"}:
+        await send_message(chat_id, prompt, keyboard=yes_no_keyboard(user_id))
+        return
+
+    if field == "region":
+        keyboard = [[region] for region in ETHIOPIA_REGIONS]
+        await send_message(chat_id, prompt, keyboard=keyboard)
+        return
+
+    if field in {"zone", "woreda", "kebele", "village"}:
+        prior = session["answers"].get(field)
+        if prior:
+            await send_message(chat_id, f"{prompt}\nSuggestion: {prior}")
+            return
 
     if field == "preferred_territory":
         answers = session["answers"]
@@ -243,7 +292,8 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     save_application(record)
     send_notification_email(record)
     send_admin_telegram_alert(record)
-    await send_message(chat_id, "Your application has been submitted successfully.\nOur team will review it and contact you soon.")
+    delete_application_draft(str(user_id))
+    await send_message(chat_id, f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}")
     sessions.pop(user_id, None)
 
 
@@ -271,6 +321,11 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
 
         file_info = await telegram_api("getFile", {"file_id": file_id})
         file_path = file_info["result"]["file_path"]
+        file_size = int(file_info["result"].get("file_size") or 0)
+        max_size = settings.max_upload_size_mb * 1024 * 1024
+        if file_size > max_size:
+            await send_message(chat_id, f"File too large. Max size is {settings.max_upload_size_mb}MB.")
+            return
         file_url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -279,13 +334,17 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
 
         guessed_type = mimetypes.guess_type(f"file.{file_ext}")[0]
         content_type = guessed_type or "application/octet-stream"
+        allowed_types = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
+        if content_type not in allowed_types:
+            await send_message(chat_id, "Unsupported file format. Please upload JPG, PNG, or PDF.")
+            return
 
         if field == "id_front":
-            filename = f"front-id.{file_ext}"
+            filename = f"front-id-{secrets.token_hex(6)}.{file_ext}"
         elif field == "id_back":
-            filename = f"back-id.{file_ext}"
+            filename = f"back-id-{secrets.token_hex(6)}.{file_ext}"
         else:
-            filename = f"profile-photo.{file_ext}"
+            filename = f"profile-photo-{secrets.token_hex(6)}.{file_ext}"
 
         uploaded_url = upload_telegram_file(
             file_resp.content,
@@ -317,7 +376,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         return
 
     if field in {"experience", "has_shop", "can_install"}:
-        if value.lower() not in {"yes", "no", "y", "n"}:
+        if value.lower() not in {"yes", "no", "y", "n", "አዎ", "አይደለም"}:
             await send_message(chat_id, "Please reply Yes or No.")
             return
         session["answers"][field] = parse_yes_no(value)
@@ -342,6 +401,13 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
+    save_application_draft(
+        telegram_user_id=str(user_id),
+        applicant_type=session["answers"]["applicant_type"],
+        language=session.get("language", "en"),
+        step_index=session["step_index"],
+        answers=session["answers"],
+    )
     await ask_next(chat_id, user_id)
 
 
@@ -434,11 +500,32 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
     return False
 
 
-async def start_registration(chat_id: int, user_id: int, applicant_type: str) -> None:
+async def start_registration(chat_id: int, user_id: int, applicant_type: str, force_new: bool = False) -> None:
+    lang = sessions.get(user_id, {}).get("language", "en")
+    draft = None if force_new else get_application_draft(str(user_id))
+    if draft and isinstance(draft.get("answers"), dict):
+        sessions[user_id] = {
+            "step_index": int(draft.get("step_index") or 0),
+            "answers": draft["answers"],
+            "language": draft.get("language") or lang,
+            "resume_pending": False,
+        }
+        await send_message(chat_id, "Resuming your saved application.")
+        await ask_next(chat_id, user_id)
+        return
+
     sessions[user_id] = {
         "step_index": 0,
         "answers": {"applicant_type": applicant_type},
+        "language": lang,
     }
+    save_application_draft(
+        telegram_user_id=str(user_id),
+        applicant_type=applicant_type,
+        language=lang,
+        step_index=0,
+        answers=sessions[user_id]["answers"],
+    )
     await send_message(chat_id, "Great! Let's begin your registration.")
     await ask_next(chat_id, user_id)
 
@@ -446,6 +533,23 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/jobs/remind-incomplete")
+async def remind_incomplete_applications() -> dict:
+    stale_drafts = get_stale_drafts(hours=24)
+    sent = 0
+    for draft in stale_drafts:
+        user_id = int(draft["telegram_user_id"])
+        sessions.setdefault(user_id, {})
+        sessions[user_id]["language"] = draft.get("language") or "en"
+        await send_message(
+            user_id,
+            f"Reminder: your application is incomplete.\n{tr(user_id, 'timeline')}\nSend /register to continue.",
+        )
+        mark_draft_reminder_sent(str(user_id))
+        sent += 1
+    return {"ok": True, "reminders_sent": sent}
 
 
 @app.post("/telegram/webhook")
@@ -461,12 +565,21 @@ async def telegram_webhook(request: Request) -> dict:
         text = message.get("text")
 
         if text == "/start":
+            if user_id not in sessions:
+                sessions[user_id] = {"language": "en"}
+            await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             keyboard = start_keyboard_for_user(user_id)
-            await send_message(chat_id, WELCOME_MESSAGE, keyboard=keyboard)
+            await send_message(chat_id, tr(user_id, "welcome"), keyboard=keyboard)
+            return {"ok": True}
+
+        if text in {"English", "አማርኛ"}:
+            sessions.setdefault(user_id, {})
+            sessions[user_id]["language"] = "en" if text == "English" else "am"
+            await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
             return {"ok": True}
 
         if text in {"/help", "/contact", "Contact Support"}:
-            await send_message(chat_id, SUPPORT_MESSAGE, keyboard=support_keyboard())
+            await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard())
             return {"ok": True}
 
         if text in {"Email Support", "WhatsApp Support", "Call Support"}:
@@ -604,11 +717,27 @@ async def telegram_webhook(request: Request) -> dict:
             return {"ok": True}
 
         if text == "/register":
+            existing_draft = get_application_draft(str(user_id))
+            if existing_draft:
+                sessions.setdefault(user_id, {})
+                sessions[user_id]["resume_pending"] = True
+                await send_message(chat_id, tr(user_id, "resume_prompt"), keyboard=[[tr(user_id, "resume_yes")], [tr(user_id, "resume_no")]])
+                return {"ok": True}
             await send_message(
                 chat_id,
                 "Choose your application type: Sales Agent / Installer Agent / Sales + Installer Agent",
                 keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
             )
+            return {"ok": True}
+
+        if text in {tr(user_id, "resume_yes"), tr(user_id, "resume_no")} and sessions.get(user_id, {}).get("resume_pending"):
+            sessions[user_id]["resume_pending"] = False
+            applicant_type = get_application_draft(str(user_id)).get("applicant_type", "sales_only")
+            if text == tr(user_id, "resume_yes"):
+                await start_registration(chat_id, user_id, applicant_type, force_new=False)
+            else:
+                delete_application_draft(str(user_id))
+                await start_registration(chat_id, user_id, applicant_type, force_new=True)
             return {"ok": True}
 
         if text in APPLICANT_TYPE_BY_BUTTON:

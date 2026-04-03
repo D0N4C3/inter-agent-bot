@@ -1,4 +1,6 @@
 import smtplib
+import uuid
+from datetime import datetime, timezone
 from email.message import EmailMessage
 
 import httpx
@@ -35,7 +37,9 @@ def upload_telegram_file(
     upsert: bool = False,
 ) -> str:
     client = get_supabase()
-    path = f"{folder}/{filename}"
+    safe_folder = folder.strip("/").replace("..", "")
+    safe_filename = filename.split("/")[-1].replace("..", "")
+    path = f"{safe_folder}/{safe_filename}"
     client.storage.from_(settings.supabase_storage_bucket).upload(
         path=path,
         file=file_bytes,
@@ -51,6 +55,67 @@ def save_application(record: dict) -> dict:
     client = get_supabase()
     result = client.table("agent_applications").insert(record).execute()
     return result.data[0]
+
+
+def save_application_draft(
+    telegram_user_id: str,
+    applicant_type: str,
+    language: str,
+    step_index: int,
+    answers: dict,
+) -> None:
+    client = get_supabase()
+    payload = {
+        "telegram_user_id": telegram_user_id,
+        "applicant_type": applicant_type,
+        "language": language,
+        "step_index": step_index,
+        "answers": answers,
+        "reminder_sent_at": None,
+    }
+    existing = (
+        client.table("application_drafts")
+        .select("draft_id")
+        .eq("telegram_user_id", telegram_user_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        draft_id = existing.data[0]["draft_id"]
+        client.table("application_drafts").update(payload).eq("draft_id", draft_id).execute()
+    else:
+        payload["draft_id"] = str(uuid.uuid4())
+        client.table("application_drafts").insert(payload).execute()
+
+
+def get_application_draft(telegram_user_id: str) -> dict | None:
+    client = get_supabase()
+    result = (
+        client.table("application_drafts")
+        .select("*")
+        .eq("telegram_user_id", telegram_user_id)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]
+    return None
+
+
+def delete_application_draft(telegram_user_id: str) -> None:
+    client = get_supabase()
+    client.table("application_drafts").delete().eq("telegram_user_id", telegram_user_id).execute()
+
+
+def get_stale_drafts(hours: int = 24) -> list[dict]:
+    client = get_supabase()
+    result = client.rpc("get_stale_application_drafts", {"cutoff_hours": hours}).execute()
+    return result.data or []
+
+
+def mark_draft_reminder_sent(telegram_user_id: str) -> None:
+    client = get_supabase()
+    client.table("application_drafts").update({"reminder_sent_at": datetime.now(timezone.utc).isoformat()}).eq("telegram_user_id", telegram_user_id).execute()
 
 
 def get_application(application_id: str) -> dict | None:
