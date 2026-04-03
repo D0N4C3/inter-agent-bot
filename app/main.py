@@ -4,12 +4,12 @@ import logging
 import mimetypes
 import re
 import secrets
+import asyncio
 from datetime import datetime, timezone
 from html import escape
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from flask import Flask, Response, abort, redirect, request
 
 from app.config import settings
 from app.scoring import score_application
@@ -36,7 +36,7 @@ from app.services import (
     list_open_territories,
 )
 
-app = FastAPI(title="Inter Ethiopia Agent Registration Bot")
+app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 SUPPORTED_LANGUAGES = {"en", "am"}
@@ -214,7 +214,7 @@ async def telegram_api(method: str, payload: dict) -> dict:
     response.raise_for_status()
     data = response.json()
     if not data.get("ok"):
-        raise HTTPException(status_code=500, detail=f"Telegram API error: {data}")
+        raise RuntimeError(f"Telegram API error: {data}")
     return data
 
 
@@ -576,13 +576,12 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str, fo
     await ask_next(chat_id, user_id)
 
 
-@app.get("/health")
-async def health() -> dict:
+@app.route("/health", methods=["GET"])
+def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/jobs/remind-incomplete")
-async def remind_incomplete_applications() -> dict:
+async def _remind_incomplete_applications() -> dict:
     stale_drafts = get_stale_drafts(hours=24)
     sent = 0
     for draft in stale_drafts:
@@ -598,10 +597,13 @@ async def remind_incomplete_applications() -> dict:
     return {"ok": True, "reminders_sent": sent}
 
 
-@app.post("/telegram/webhook")
-async def telegram_webhook(request: Request) -> dict:
+@app.route("/jobs/remind-incomplete", methods=["POST"])
+def remind_incomplete_applications() -> dict:
+    return asyncio.run(_remind_incomplete_applications())
+
+
+async def _telegram_webhook(update: dict) -> dict:
     try:
-        update = await request.json()
         message = update.get("message") or update.get("edited_message")
         if not message:
             return {"ok": True}
@@ -811,23 +813,27 @@ async def telegram_webhook(request: Request) -> dict:
     return {"ok": True}
 
 
-def _require_admin(request: Request) -> None:
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook() -> dict:
+    update = request.get_json(silent=True) or {}
+    return asyncio.run(_telegram_webhook(update))
+
+
+def _require_admin() -> None:
     expected = settings.admin_dashboard_token
     if not expected:
         return
-    provided = request.query_params.get("token") or request.headers.get("x-admin-token")
+    provided = request.args.get("token") or request.headers.get("x-admin-token")
     if provided != expected:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        abort(401, description="Unauthorized")
 
 
-@app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(
-    request: Request,
-    region: str | None = None,
-    applicant_type: str | None = None,
-    status: str | None = None,
-) -> HTMLResponse:
-    _require_admin(request)
+@app.route("/admin", methods=["GET"])
+def admin_dashboard() -> Response:
+    _require_admin()
+    region = request.args.get("region")
+    applicant_type = request.args.get("applicant_type")
+    status = request.args.get("status")
     apps = get_applications(region=region, applicant_type=applicant_type, status=status)
 
     rows = []
@@ -862,7 +868,7 @@ async def admin_dashboard(
                     <div class="uploads">{''.join(uploads) if uploads else '<span class="muted">No uploads</span>'}</div>
                 </td>
                 <td>
-                    <form method=\"post\" action=\"/admin/applications/{escape(app_row['application_id'])}/status?token={request.query_params.get('token','')}\">
+                    <form method=\"post\" action=\"/admin/applications/{escape(app_row['application_id'])}/status?token={request.args.get('token','')}\">
                         <select name=\"status\">{''.join([f'<option value="{s}">{s}</option>' for s in sorted(VALID_STATUSES)])}</select>
                         <input name=\"territory_village\" placeholder=\"territory\" value=\"{escape(app_row['preferred_territory'])}\" />
                         <input name=\"admin_notes\" placeholder=\"internal notes\" value=\"{escape(app_row.get('admin_notes') or '')}\" />
@@ -893,7 +899,7 @@ async def admin_dashboard(
     <div class="card">
     <h2>✨ Agent Applications Dashboard</h2>
     <form method=\"get\" action=\"/admin\">
-      <input type=\"hidden\" name=\"token\" value=\"{request.query_params.get('token', '')}\" />
+      <input type=\"hidden\" name=\"token\" value=\"{request.args.get('token', '')}\" />
       <input name=\"region\" value=\"{region or ''}\" placeholder=\"Region\" />
       <input name=\"applicant_type\" value=\"{applicant_type or ''}\" placeholder=\"Type\" />
       <input name=\"status\" value=\"{status or ''}\" placeholder=\"Status\" />
@@ -905,16 +911,13 @@ async def admin_dashboard(
     </table>
     </div></body></html>
     """
-    return HTMLResponse(content=html)
+    return Response(html, mimetype="text/html")
 
 
-@app.post("/admin/applications/{application_id}/status")
-async def admin_update_status(
-    application_id: str,
-    request: Request,
-) -> dict:
-    _require_admin(request)
-    form = await request.form()
+@app.route("/admin/applications/<application_id>/status", methods=["POST"])
+def admin_update_status(application_id: str):
+    _require_admin()
+    form = request.form
     status = str(form.get("status") or "").strip()
     notes = str(form.get("admin_notes") or "").strip() or None
     territory_village = str(form.get("territory_village") or "").strip() or None
@@ -925,8 +928,8 @@ async def admin_update_status(
         admin_notes=notes,
         territory_village=territory_village,
     )
-    token = request.query_params.get("token")
+    token = request.args.get("token")
     redirect_url = "/admin"
     if token:
         redirect_url = f"/admin?token={token}"
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return redirect(redirect_url, code=303)

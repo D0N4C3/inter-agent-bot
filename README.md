@@ -1,6 +1,6 @@
 # Inter Ethiopia Agent Registration Bot (Phase 3)
 
-Python + FastAPI Telegram webhook bot for Inter Ethiopia Solutions with:
+Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 
 - Guided Telegram agent application flow.
 - Territory conflict detection before submission and via `/territory` command.
@@ -29,7 +29,7 @@ Required env values (in addition to Phase 1):
 ## 2) Run API
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+flask --app app.main run --host 0.0.0.0 --port 8000 --debug
 ```
 
 ## 3) Telegram commands
