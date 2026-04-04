@@ -39,6 +39,7 @@ Required env values (in addition to Phase 1):
 - `TRAINING_PDF_URL` (optional): onboarding PDF guide link.
 - `TRAINING_VIDEO_URL` (optional): onboarding video link.
 - `SALES_PLAYBOOK_URL` (optional): sales playbook link.
+- `GOOGLE_MAPS_SDK_KEY` (optional): enables Google Maps in the mini app territory workspace.
 
 ## 2) Run API
 
@@ -75,6 +76,7 @@ Background job endpoint:
 - `GET /mini-app` — premium Telegram mini app for the full workflow:
   all agent/installer data entry via UI forms + map + dashboards.
 - `POST /api/mini-app/register` — register directly from mini app payload.
+- `POST /api/mini-app/upload` — upload ID/profile files from device storage.
 - `GET /api/territories/map` — map dataset (with coordinates, availability).
 - `POST /api/territories/nearest` — GPS-based nearest available territories.
 - `GET /api/agent/dashboard/<telegram_user_id>` — agent dashboard payload.
@@ -113,4 +115,3 @@ To keep the project maintainable as features grow, the app now uses a modular la
 - `app/web_module.py`: OOP-style `WebModule` class that encapsulates admin + mini-app web routes and auth helpers.
 - `app/templates/admin_dashboard.html`: admin dashboard UI template.
 - `app/templates/mini_app.html`: Telegram mini app UI template.
-

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sales_playbook_url: str = "https://example.com/training/sales-playbook.pdf"
     mini_app_name: str = "Inter Agent Platform"
     mini_app_primary_color: str = "#165dff"
+    google_maps_sdk_key: str | None = None
     territory_suggestion_limit: int = 5
 
     @field_validator(

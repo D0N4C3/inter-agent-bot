@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mini_app.css') }}" />
 </head>
 <body>
@@ -132,13 +135,23 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">📄</span>Document URLs</div>
+        <div class="card-head"><span class="card-head-icon">📄</span>Document Uploads</div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>National ID — Front</label><input id="id_file_front_url" placeholder="https://…" /></div>
-            <div class="field"><label>National ID — Back</label><input id="id_file_back_url" placeholder="https://…" /></div>
-            <div class="field"><label>Profile photo (optional)</label><input id="profile_photo_url" placeholder="https://…" /></div>
+            <div class="field">
+              <label>National ID — Front</label>
+              <input id="id_file_front" type="file" accept="image/*,.pdf" />
+            </div>
+            <div class="field">
+              <label>National ID — Back</label>
+              <input id="id_file_back" type="file" accept="image/*,.pdf" />
+            </div>
+            <div class="field">
+              <label>Profile photo (optional)</label>
+              <input id="profile_photo" type="file" accept="image/*" />
+            </div>
           </div>
+          <div class="section-sub mt-2">Upload files directly from your device. Links are no longer required.</div>
         </div>
       </div>
 
@@ -297,8 +310,13 @@
 </nav>
 
 <!-- Scripts -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+></script>
+{% if google_maps_sdk_key %}
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_sdk_key|urlencode }}&loading=async"></script>
+{% endif %}
 <script>
   // Apply brand color from template variable
   document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
@@ -373,27 +391,52 @@
     const target = document.getElementById('tab-' + tabName);
     if (target) target.classList.add('active');
     document.querySelectorAll(`[data-tab="${tabName}"]`).forEach(b => b.classList.add('active'));
-    // Invalidate map size if switching to territory tab
-    if (tabName === 'territories' && map) setTimeout(() => map.invalidateSize(), 100);
+    if (tabName === 'territories' && map) {
+      setTimeout(() => google.maps.event.trigger(map, 'resize'), 100);
+    }
   }
 
   document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
+  document.querySelectorAll('input, textarea').forEach(el => el.classList.add('form-control'));
+  document.querySelectorAll('select').forEach(el => el.classList.add('form-select'));
 
   // ── Map setup ─────────────────────────────────────
-  const map = L.map('map').setView([8.9806, 38.7578], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
+  const mapEl = document.getElementById('map');
+  let map = null;
+  let infoWindow = null;
   let territoryMarkers = [];
   let pickedLatLng = null;
 
-  map.on('click', (e) => {
-    pickedLatLng = e.latlng;
-    setResult({ picked_location: [e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6)] });
-  });
+  function initMap() {
+    if (!window.google?.maps) {
+      if (mapEl) {
+        mapEl.innerHTML = '<div class="p-3 text-danger">Google Maps SDK is not configured.</div>';
+      }
+      return;
+    }
+    map = new google.maps.Map(mapEl, {
+      center: { lat: 8.9806, lng: 38.7578 },
+      zoom: 6,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+    });
+    infoWindow = new google.maps.InfoWindow();
+    map.addListener('click', (e) => {
+      pickedLatLng = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      setResult({ picked_location: [pickedLatLng.lat.toFixed(6), pickedLatLng.lng.toFixed(6)] });
+    });
+  }
+
+  async function waitForGoogleMaps(timeoutMs = 8000) {
+    const start = Date.now();
+    while (!window.google?.maps && Date.now() - start < timeoutMs) {
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+    return !!window.google?.maps;
+  }
 
   // ── Territory loading ─────────────────────────────
   async function loadTerritories() {
@@ -404,7 +447,7 @@
     });
     const res = await apiFetch(`/api/territories/map?${qp.toString()}`);
     const data = await res.json();
-    territoryMarkers.forEach(m => m.remove());
+    territoryMarkers.forEach(m => m.setMap(null));
     territoryMarkers = [];
     const items = data.items || [];
     document.getElementById('kpiTerritories').textContent = items.length;
@@ -413,9 +456,23 @@
     items.forEach(t => {
       if (t.latitude == null || t.longitude == null) return;
       const color = t.is_locked ? '#f87171' : '#06d6a0';
-      const marker = L.circleMarker([t.latitude, t.longitude], { radius: 7, color, fillColor: color, fillOpacity: 0.35 })
-        .addTo(map)
-        .bindPopup(`<strong>${t.village}</strong><br>${t.availability_status || (t.is_locked ? '🔒 Locked' : '✓ Open')}`);
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: t.latitude, lng: t.longitude },
+        title: t.village || 'Territory',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: color,
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 1.5,
+        },
+      });
+      marker.addListener('click', () => {
+        infoWindow.setContent(`<strong>${t.village}</strong><br>${t.availability_status || (t.is_locked ? '🔒 Locked' : '✓ Open')}`);
+        infoWindow.open({ anchor: marker, map });
+      });
       territoryMarkers.push(marker);
     });
     return items.length;
@@ -424,9 +481,10 @@
   async function handleLoadTerritories(btn) {
     setBtnLoading(btn, true, 'Refreshing…');
     try {
+      if (!map) throw new Error('Google Maps is not available.');
       const n = await loadTerritories();
       setResult(`Loaded ${n} territories.`);
-    } catch(e) { setResult({ok:false, error:'Failed to load territories.'}); }
+    } catch(e) { setResult({ok:false, error:e.message || 'Failed to load territories.'}); }
     finally { setBtnLoading(btn, false); }
   }
 
@@ -444,7 +502,27 @@
   }
 
   // ── Registration ──────────────────────────────────
+  async function uploadFile(fileInputId, required = false) {
+    const input = document.getElementById(fileInputId);
+    const file = input?.files?.[0];
+    if (!file) {
+      if (required) throw new Error(`Please upload ${fileInputId.replaceAll('_', ' ')}`);
+      return null;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiFetch('/api/mini-app/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  }
+
   async function submitRegistration() {
+    const [idFrontUrl, idBackUrl, profilePhotoUrl] = await Promise.all([
+      uploadFile('id_file_front', true),
+      uploadFile('id_file_back', true),
+      uploadFile('profile_photo', false),
+    ]);
     return apiFetch('/api/mini-app/register', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -463,9 +541,9 @@
         work_type:          document.getElementById('work_type').value,
         has_shop:           asBool('has_shop'),
         can_install:        asBool('can_install'),
-        id_file_front_url:  document.getElementById('id_file_front_url').value,
-        id_file_back_url:   document.getElementById('id_file_back_url').value,
-        profile_photo_url:  document.getElementById('profile_photo_url').value || null,
+        id_file_front_url:  idFrontUrl,
+        id_file_back_url:   idBackUrl,
+        profile_photo_url:  profilePhotoUrl,
         picked_latitude:    pickedLatLng ? pickedLatLng.lat : null,
         picked_longitude:   pickedLatLng ? pickedLatLng.lng : null
       })
@@ -478,7 +556,7 @@
       const res = await submitRegistration();
       const data = await res.json();
       setResult(data.ok ? 'Registration submitted successfully! 🎉' : data);
-    } catch(e) { setResult({ok:false, error:'Submission failed. Please try again.'}); }
+    } catch(e) { setResult({ok:false, error:e.message || 'Submission failed. Please try again.'}); }
     finally { setBtnLoading(btn, false); }
   }
 
@@ -633,6 +711,8 @@
   // ── Init ──────────────────────────────────────────
   async function initMiniApp() {
     try {
+      await waitForGoogleMaps();
+      initMap();
       const res = await apiFetch('/api/mini-app/session');
       const data = await res.json();
       if (!data.ok) { setResult(data); return; }
@@ -644,7 +724,7 @@
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
       }
       await loadDashboard();
-      await loadTerritories();
+      if (map) await loadTerritories();
       await loadRankings();
     } catch(e) {
       console.warn('initMiniApp error:', e);
