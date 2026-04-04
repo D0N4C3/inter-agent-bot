@@ -15,6 +15,7 @@
   "submit_application": "Submit Application",
   "my_training_modules": "My Training Modules",
   "my_dashboard": "My Dashboard",
+  "my_dashboard_sub": "View your application status, profile, and key performance insights.",
   "refresh_map": "Refresh Map",
   "nearest_gps": "📡 Nearest by GPS",
   "reload_dashboard": "↻ Reload Dashboard",
@@ -55,4 +56,29 @@
   "init_error": "initMiniApp error:",
   "agent_fallback": "Agent",
   "submitted": "Submitted"
+  ,"total_territories": "Total territories"
+  ,"open": "Open"
+  ,"locked": "Locked"
+  ,"brand_name": "Inter Ethiopia"
+  ,"agent_portal": "Agent Portal"
+  ,"portal_subtitle": "Official registration and field operations workspace."
+  ,"territory_map": "Territory Map"
+  ,"territory_map_sub": "View open and locked territories. Click the map to select a location."
+  ,"filter_territories": "Filter Territories"
+  ,"training_sub": "Approved agents can access role-based modules and mark completion from the module list."
+  ,"performance_short": "Perf."
+  ,"loaded_territories": "Loaded {count} territories."
+  ,"please_upload": "Please upload {field}"
+  ,"application_id": "Application ID"
+  ,"territory": "Territory"
+  ,"training_progress": "Training Progress"
+  ,"sales_logged": "Sales Logged"
+  ,"install_jobs": "Install Jobs"
+  ,"work_type": "Work Type"
+  ,"no_data_yet": "No data yet."
+  ,"na": "N/A"
+  ,"top_sales_agents": "Top Sales Agents"
+  ,"top_installer_agents": "Top Installer Agents"
+  ,"sales_suffix": "sales"
+  ,"jobs_suffix": "jobs"
 }

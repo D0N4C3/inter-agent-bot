@@ -42,36 +42,36 @@
 
     <nav class="sidebar-nav">
       <button class="tab-btn active" data-tab="registration">
-        <span class="tab-icon">📋</span>Registration
+        <span class="tab-icon">📋</span><span data-i18n="registration">Registration</span>
       </button>
       <button class="tab-btn" data-tab="territories">
-        <span class="tab-icon">🗺</span>Territories
+        <span class="tab-icon">🗺</span><span data-i18n="territories">Territories</span>
       </button>
       <button class="tab-btn" data-tab="agent">
-        <span class="tab-icon">👤</span>Dashboard
+        <span class="tab-icon">👤</span><span data-i18n="agent">Dashboard</span>
       </button>
       <button class="tab-btn" data-tab="training">
-        <span class="tab-icon">🎓</span>Training
+        <span class="tab-icon">🎓</span><span data-i18n="training">Training</span>
       </button>
       <button class="tab-btn" data-tab="rankings">
-        <span class="tab-icon">🏆</span>Rankings
+        <span class="tab-icon">🏆</span><span data-i18n="rankings">Rankings</span>
       </button>
       <button class="tab-btn admin-only hidden-admin" data-tab="performance">
-        <span class="tab-icon">📈</span>Performance
+        <span class="tab-icon">📈</span><span data-i18n="performance">Performance</span>
       </button>
     </nav>
 
     <div class="sidebar-kpis">
       <div class="kpi-row">
-        <span class="kpi-label">Total territories</span>
+        <span class="kpi-label" data-i18n="total_territories">Total territories</span>
         <span class="kpi-val" id="kpiTerritories">—</span>
       </div>
       <div class="kpi-row">
-        <span class="kpi-label">Open</span>
+        <span class="kpi-label" data-i18n="open">Open</span>
         <span class="kpi-val open-color" id="kpiOpen">—</span>
       </div>
       <div class="kpi-row">
-        <span class="kpi-label">Locked</span>
+        <span class="kpi-label" data-i18n="locked">Locked</span>
         <span class="kpi-val locked-color" id="kpiLocked">—</span>
       </div>
     </div>
@@ -83,17 +83,17 @@
       <div class="app-top-header__brand">
         <div class="app-top-header__logo" aria-hidden="true">IE</div>
         <div>
-          <p class="app-top-header__eyebrow">Inter Ethiopia</p>
-          <h1 class="app-top-header__title">Agent Portal</h1>
+          <p class="app-top-header__eyebrow" data-i18n="brand_name">Inter Ethiopia</p>
+          <h1 class="app-top-header__title" data-i18n="agent_portal">Agent Portal</h1>
         </div>
       </div>
       <p class="app-top-header__sub">
-        Official registration and field operations workspace.
+        <span data-i18n="portal_subtitle">Official registration and field operations workspace.</span>
       </p>
     </header>
 
     <div class="mobile-language-bar">
-      <label for="languagePickerMobile">Language</label>
+      <label for="languagePickerMobile" data-i18n="language">Language</label>
       <select id="languagePickerMobile" class="premium-select" aria-label="Choose language">
         <option value="en">English</option>
         <option value="am">አማርኛ</option>
@@ -206,12 +206,12 @@
     <!-- Territories Tab -->
     <section id="tab-territories" class="tab">
       <div class="section-header">
-        <div class="section-title">Territory Map</div>
-        <div class="section-sub">View open and locked territories. Click the map to select a location.</div>
+        <div class="section-title" data-i18n="territory_map">Territory Map</div>
+        <div class="section-sub" data-i18n="territory_map_sub">View open and locked territories. Click the map to select a location.</div>
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">🔍</span>Filter Territories</div>
+        <div class="card-head"><span class="card-head-icon">🔍</span><span data-i18n="filter_territories">Filter Territories</span></div>
         <div class="card-body">
           <div class="form-grid">
             <div class="field"><label>Region</label><select id="filter_region"><option value="">All regions</option></select></div>
@@ -219,8 +219,8 @@
             <div class="field"><label>Woreda</label><select id="filter_woreda"><option value="">All woredas</option></select></div>
           </div>
           <div style="display:flex;gap:10px;margin-top:12px;">
-            <button class="btn btn-primary" style="flex:1" onclick="handleLoadTerritories(this)">Refresh Map</button>
-            <button class="btn btn-secondary" style="flex:1" onclick="suggestNearest()">📡 Nearest by GPS</button>
+            <button class="btn btn-primary" style="flex:1" onclick="handleLoadTerritories(this)" data-i18n="refresh_map">Refresh Map</button>
+            <button class="btn btn-secondary" style="flex:1" onclick="suggestNearest()" data-i18n="nearest_gps">📡 Nearest by GPS</button>
           </div>
         </div>
       </div>
@@ -233,8 +233,8 @@
     <!-- Agent Dashboard Tab -->
     <section id="tab-agent" class="tab">
       <div class="section-header">
-        <div class="section-title">My Dashboard</div>
-        <div class="section-sub">View your application status, profile, and key performance insights.</div>
+        <div class="section-title" data-i18n="my_dashboard">My Dashboard</div>
+        <div class="section-sub" data-i18n="my_dashboard_sub">View your application status, profile, and key performance insights.</div>
       </div>
 
       <div id="agentProfileCard" style="display:none">
@@ -250,7 +250,7 @@
 
       <div id="dashboardHighlights" class="dashboard-highlights"></div>
 
-      <button class="btn btn-secondary" onclick="handleLoadDashboard(this)" style="margin-bottom:16px">↻ Reload Dashboard</button>
+      <button class="btn btn-secondary" onclick="handleLoadDashboard(this)" style="margin-bottom:16px" data-i18n="reload_dashboard">↻ Reload Dashboard</button>
 
       <div class="card">
         <div class="card-head"><span class="card-head-icon">✏️</span>Update Profile</div>
@@ -272,11 +272,11 @@
     <!-- Training Tab -->
     <section id="tab-training" class="tab">
       <div class="section-header">
-        <div class="section-title">Training</div>
-        <div class="section-sub">Approved agents can access role-based modules and mark completion from the module list.</div>
+        <div class="section-title" data-i18n="training">Training</div>
+        <div class="section-sub" data-i18n="training_sub">Approved agents can access role-based modules and mark completion from the module list.</div>
       </div>
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">🎓</span>My Training Modules</div>
+        <div class="card-head"><span class="card-head-icon">🎓</span><span data-i18n="my_training_modules">My Training Modules</span></div>
         <div class="card-body">
           <div id="trainingModulesContainer" class="rank-list"></div>
         </div>
@@ -332,23 +332,23 @@
   </button>
   <button class="bnav-btn" data-tab="territories">
     <span class="bnav-icon">🗺</span>
-    <span class="bnav-label">Territories</span>
+        <span class="bnav-label" data-i18n="territories">Territories</span>
   </button>
   <button class="bnav-btn" data-tab="agent">
     <span class="bnav-icon">👤</span>
-    <span class="bnav-label">Dashboars</span>
+        <span class="bnav-label" data-i18n="agent">Dashboard</span>
   </button>
   <button class="bnav-btn" data-tab="training">
     <span class="bnav-icon">🎓</span>
-    <span class="bnav-label">Training</span>
+        <span class="bnav-label" data-i18n="training">Training</span>
   </button>
   <button class="bnav-btn" data-tab="rankings">
     <span class="bnav-icon">🏆</span>
-    <span class="bnav-label">Rankings</span>
+        <span class="bnav-label" data-i18n="rankings">Rankings</span>
   </button>
   <button class="bnav-btn admin-only hidden-admin" data-tab="performance">
     <span class="bnav-icon">📈</span>
-    <span class="bnav-label">Perf.</span>
+        <span class="bnav-label" data-i18n="performance_short">Perf.</span>
   </button>
 </nav>
 
@@ -400,18 +400,6 @@
 
   function applyLanguage(lang) {
     const labels = MINI_I18N[lang] || MINI_I18N.en;
-    document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
-      const key = btn.dataset.tab;
-      const textTarget = btn.querySelector('.bnav-label') || btn;
-      const icon = btn.querySelector('.tab-icon,.bnav-icon');
-      if (!labels[key] || !textTarget) return;
-      if (btn.classList.contains('bnav-btn')) {
-        textTarget.textContent = labels[key];
-      } else {
-        const iconText = icon ? icon.outerHTML : '';
-        btn.innerHTML = `${iconText}${labels[key]}`;
-      }
-    });
     document.querySelectorAll('[data-i18n]').forEach(node => {
       const key = node.dataset.i18n;
       if (!key) return;
@@ -639,7 +627,7 @@
     try {
       if (!map) throw new Error(t('google_maps_unavailable'));
       const n = await loadTerritories();
-      setResult(`Loaded ${n} territories.`);
+      setResult(t('loaded_territories', { count: n }));
     } catch(e) { setResult({ok:false, error:e.message || t('failed_load_territories')}); }
     finally { setBtnLoading(btn, false); }
   }
@@ -751,7 +739,7 @@
     const input = document.getElementById(fileInputId);
     const file = input?.files?.[0];
     if (!file) {
-      if (required) throw new Error(`Please upload ${fileInputId.replaceAll('_', ' ')}`);
+      if (required) throw new Error(t('please_upload', { field: fileInputId.replaceAll('_', ' ') }));
       return null;
     }
     const formData = new FormData();
@@ -950,12 +938,12 @@
     const sales = perfRows.filter(item => item.event_type === 'sale_closed').reduce((sum, item) => sum + Number(item.event_value || 0), 0);
     const installs = perfRows.filter(item => item.event_type === 'installer_job_completed').reduce((sum, item) => sum + Number(item.event_value || 0), 0);
     container.innerHTML = `
-      <div class="highlight-card"><div class="highlight-label">Application ID</div><div class="highlight-value">${profile.application_id || '—'}</div></div>
-      <div class="highlight-card"><div class="highlight-label">Territory</div><div class="highlight-value">${[territory.region, territory.zone, territory.woreda].filter(Boolean).join(' / ') || '—'}</div></div>
-      <div class="highlight-card"><div class="highlight-label">Training Progress</div><div class="highlight-value">${trainingCompleted}/${trainingTotal || 0}</div></div>
-      <div class="highlight-card"><div class="highlight-label">Sales Logged</div><div class="highlight-value">${sales}</div></div>
-      <div class="highlight-card"><div class="highlight-label">Install Jobs</div><div class="highlight-value">${installs}</div></div>
-      <div class="highlight-card"><div class="highlight-label">Work Type</div><div class="highlight-value">${profile.work_type || '—'}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('application_id')}</div><div class="highlight-value">${profile.application_id || '—'}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('territory')}</div><div class="highlight-value">${[territory.region, territory.zone, territory.woreda].filter(Boolean).join(' / ') || '—'}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('training_progress')}</div><div class="highlight-value">${trainingCompleted}/${trainingTotal || 0}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('sales_logged')}</div><div class="highlight-value">${sales}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('install_jobs')}</div><div class="highlight-value">${installs}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('work_type')}</div><div class="highlight-value">${profile.work_type || '—'}</div></div>
     `;
   }
 
@@ -988,12 +976,12 @@
   // ── Rankings ──────────────────────────────────────
   function drawRankList(title, emoji, items, valueKey, valueSuffix = '') {
     if (!items?.length) {
-      return `<p class="muted" style="margin:8px 0">${title}: No data yet.</p>`;
+      return `<p class="muted" style="margin:8px 0">${title}: ${t('no_data_yet')}</p>`;
     }
     const rows = items.map((item, idx) => `
       <div class="rank-item">
         <div class="rank-num">${idx + 1}</div>
-        <div class="rank-name">${item.full_name || 'N/A'}</div>
+        <div class="rank-name">${item.full_name || t('na')}</div>
         <div class="rank-phone">${item.phone || ''}</div>
         <div class="rank-score">${item[valueKey] ?? 0}${valueSuffix}</div>
       </div>
@@ -1008,8 +996,8 @@
     const res = await apiFetch('/api/rankings');
     const data = await res.json();
     document.getElementById('rankingsContainer').innerHTML =
-      drawRankList('Top Sales Agents',     '💰', data.rankings?.top_sales_agents  || [], 'total_sales',     ' sales') +
-      drawRankList('Top Installer Agents', '🔧', data.rankings?.top_installers    || data.rankings?.top_installer_agents || [], 'completed_jobs', ' jobs');
+      drawRankList(t('top_sales_agents'),     '💰', data.rankings?.top_sales_agents  || [], 'total_sales',     ` ${t('sales_suffix')}`) +
+      drawRankList(t('top_installer_agents'), '🔧', data.rankings?.top_installers    || data.rankings?.top_installer_agents || [], 'completed_jobs', ` ${t('jobs_suffix')}`);
     setResult(t('rankings_refreshed'));
   }
 
