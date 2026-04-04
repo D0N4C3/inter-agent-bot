@@ -1,13 +1,25 @@
-# Inter Ethiopia Agent Registration Bot (Phase 1 MVP)
+# Inter Ethiopia Agent Registration Bot (Phase 5)
 
-Python + FastAPI Telegram webhook bot for Inter Ethiopia Solutions that:
+Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 
-- Guides users through a full agent application flow.
-- Stores applications in Supabase (schema: `inter_agent_apply`).
-- Uploads ID files and optional profile photo to Supabase Storage.
-- Calculates qualification score + flag.
-- Sends submission email notification via SMTP.
-- Supports status checks from Telegram.
+- Guided Telegram agent application flow.
+- Territory conflict detection before submission and via `/territory` command.
+- Qualification scoring with stronger candidate auto-flagging.
+- Admin dashboard for operations and approvals.
+- Territory locking on approval.
+- Post-approval onboarding message (welcome + training + next steps).
+- Agent lifecycle fields: agent tag, performance potential, internal remarks.
+- Training delivery links configurable via environment.
+- CSV/Excel exports from admin dashboard.
+- SMTP email + Telegram admin alerts for new applications.
+- English + Amharic language selection for user-facing flow.
+- Incomplete application draft recovery + reminder job endpoint.
+- File validation (size/format) and safer randomized storage filenames.
+- Telegram Mini App UI endpoint for registration with map-enabled territory selection.
+- GPS nearest-territory suggestions.
+- Agent-side dashboard APIs (status, territory, training, profile updates).
+- Performance event tracking APIs for sales/installers.
+- Ranking APIs for top sales agents and top installers.
 
 ## 1) Setup
 
@@ -16,73 +28,75 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# then fill your real values in .env
 ```
 
-> A `.env` file has been created locally for your provided credentials.
+Required env values (in addition to Phase 1):
+
+- `ADMIN_TELEGRAM_CHAT_ID` (optional): chat id to receive new application alerts.
+- `ADMIN_DASHBOARD_TOKEN` (optional): if set, required to access `/admin`.
+- `TRAINING_PDF_URL` (optional): onboarding PDF guide link.
+- `TRAINING_VIDEO_URL` (optional): onboarding video link.
+- `SALES_PLAYBOOK_URL` (optional): sales playbook link.
 
 ## 2) Run API
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+flask --app app.main run --host 0.0.0.0 --port 8000 --debug
 ```
 
-Health endpoint:
-
-```bash
-GET /health
-```
-
-Telegram webhook endpoint:
-
-```bash
-POST /telegram/webhook
-```
-
-## 3) Configure Telegram webhook
-
-```bash
-curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://<your-domain>/telegram/webhook"}'
-```
-
-## 4) Supabase SQL
-
-Run `sql/schema.sql` in Supabase SQL editor to create required schema/tables.
-
-## 5) Supported commands
+## 3) Telegram commands
 
 - `/start`
 - `/register`
+- language selection via `/start` then choosing **English** or **አማርኛ**
 - `/status` (or `/status <phone>`)
-- `/territory <area>`
+- `/territory` and `/territory <village>`
+- `/territory <region|zone|woreda|kebele|village>`
 - `/help`
 - `/contact`
+- `/admin` (opens admin management menu for bot admins)
+- `/send` (bootstrap first admin if none exists)
+- `/addadmin <telegram_user_id>` (admin only)
 
-## 6) Registration flow fields
+Main Telegram menu also includes:
 
-1. Applicant type (`sales_only`, `installer_only`, `sales_installer`)
-2. Full name
-3. Mobile number
-4. Region
-5. Zone
-6. Woreda
-7. Kebele
-8. Town / Village
-9. Experience (Yes/No)
-10. Experience years
-11. Work type
-12. Has shop/business (Yes/No)
-13. Can install (Yes/No)
-14. National ID front upload (required)
-15. National ID back upload (required)
-16. Profile photo (optional)
-17. Preferred territory
-18. Terms acceptance (`I Agree`)
+- Check Territory Availability
+- Contact Support options (Phone / WhatsApp / Email)
+- Admin Management submenu for bot admins (view/filter/update/add admin/dashboard link)
 
-## 7) Notes
+Background job endpoint:
 
-- Territory availability is checked before final save.
-- If locked, user is asked to choose another territory.
-- Status values expected: `Submitted`, `Under Review`, `Approved`, `Rejected`, `More Information Required`.
+- `POST /jobs/remind-incomplete` (sends reminder messages for stale drafts).
+
+## 3.1) Mini App + Platform APIs
+
+- `GET /mini-app` — Telegram mini app ready UI form with map interaction.
+- `POST /api/mini-app/register` — register directly from mini app payload.
+- `GET /api/territories/map` — map dataset (with coordinates, availability).
+- `POST /api/territories/nearest` — GPS-based nearest available territories.
+- `GET /api/agent/dashboard/<telegram_user_id>` — agent dashboard payload.
+- `PATCH /api/agent/dashboard/<telegram_user_id>/profile` — agent profile updates.
+- `POST /api/agent/training/<application_id>` — mark training module completion.
+- `POST /api/performance/events` — admin-auth performance events (sales/jobs/training).
+- `GET /api/rankings` — top sales and installer ranking feed.
+
+## 4) Admin dashboard
+
+Open:
+
+- `/admin` (or `/admin?token=<ADMIN_DASHBOARD_TOKEN>` if token is configured)
+
+Features:
+
+- View applications
+- Filter by region/type/status
+- Open upload links
+- Approve / Reject / Under Review / More Info Required
+- Assign territory while approving
+- Add internal notes
+- Track agent tagging and performance potential
+- Export dashboard data as CSV/Excel
+
+## 5) Supabase SQL
+
+Run `sql/schema.sql` in Supabase SQL editor.
