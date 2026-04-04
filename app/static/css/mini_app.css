@@ -281,7 +281,8 @@ body {
 }
 .field select,
 #languagePicker,
-#languagePickerMobile {
+#languagePickerMobile,
+.premium-select {
   padding-right: 38px;
   background-image:
     linear-gradient(135deg, transparent 50%, rgba(232,240,252,0.82) 50%),
@@ -294,6 +295,12 @@ body {
   background-size: 5px 5px, 5px 5px, 1px 58%;
   background-repeat: no-repeat;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 8px 22px rgba(3,8,18,0.3);
+}
+.mobile-language-bar .premium-select {
+  background-color: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.12);
+  min-height: 42px;
+  font-weight: 600;
 }
 .field input::placeholder, .field textarea::placeholder { color: var(--text-3); }
 .field input:focus, .field select:focus, .field textarea:focus {

@@ -29,7 +29,7 @@
       </div>
       <div class="field" style="margin:8px 0 0 0;">
         <label style="font-size:12px;opacity:.8;">Language</label>
-        <select id="languagePicker">
+        <select id="languagePicker" class="premium-select">
           <option value="en">English</option>
           <option value="am">አማርኛ</option>
         </select>
@@ -94,7 +94,7 @@
 
     <div class="mobile-language-bar">
       <label for="languagePickerMobile">Language</label>
-      <select id="languagePickerMobile" aria-label="Choose language">
+      <select id="languagePickerMobile" class="premium-select" aria-label="Choose language">
         <option value="en">English</option>
         <option value="am">አማርኛ</option>
       </select>
@@ -517,9 +517,6 @@
   document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
-  document.querySelectorAll('input, textarea').forEach(el => el.classList.add('form-control'));
-  document.querySelectorAll('select').forEach(el => el.classList.add('form-select'));
-
   // ── Map setup ─────────────────────────────────────
   const mapEl = document.getElementById('map');
   let map = null;

@@ -20,6 +20,7 @@ from app.services import (
     get_applications,
     list_application_drafts,
     list_bot_admins,
+    list_location_options,
     list_performance_events,
     list_territories_admin,
     list_training_progress,
@@ -69,9 +70,11 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 uploads.append({"label": label, "url": url, "is_image": is_image_url(url)})
             rows.append({"app": app_row, "uploads": uploads})
 
-        known_regions = sorted({(item.get("region") or "").strip() for item in territories if (item.get("region") or "").strip()})
-        known_zones = sorted({(item.get("zone") or "").strip() for item in territories if (item.get("zone") or "").strip()})
-        known_woredas = sorted({(item.get("woreda") or "").strip() for item in territories if (item.get("woreda") or "").strip()})
+        location_options = list_location_options()
+        known_regions = location_options.get("regions", [])
+        known_zones = location_options.get("zones", [])
+        known_woredas = location_options.get("woredas", [])
+        location_rows = location_options.get("rows", [])
 
         return Response(
             render_template(
@@ -97,6 +100,7 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 known_regions=known_regions,
                 known_zones=known_zones,
                 known_woredas=known_woredas,
+                location_rows=location_rows,
             ),
             mimetype="text/html",
         )
