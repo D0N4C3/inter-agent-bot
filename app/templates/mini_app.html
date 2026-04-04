@@ -79,6 +79,13 @@
 
   <!-- ── CONTENT AREA ── -->
   <main class="content-area">
+    <div class="mobile-language-bar">
+      <label for="languagePickerMobile">Language</label>
+      <select id="languagePickerMobile" aria-label="Choose language">
+        <option value="en">English</option>
+        <option value="am">አማርኛ</option>
+      </select>
+    </div>
 
     <!-- Registration Tab -->
     <section id="tab-registration" class="tab active">
@@ -325,6 +332,17 @@
   </button>
 </nav>
 
+<div id="languageGate" class="language-gate hidden" role="dialog" aria-modal="true" aria-labelledby="languageGateTitle">
+  <div class="language-gate-card">
+    <h2 id="languageGateTitle">Choose your language</h2>
+    <p>እባክዎ ቋንቋዎን ይምረጡ</p>
+    <div class="language-gate-actions">
+      <button type="button" class="btn btn-primary" data-language-choice="en">English</button>
+      <button type="button" class="btn btn-secondary" data-language-choice="am">አማርኛ</button>
+    </div>
+  </div>
+</div>
+
 <!-- Scripts -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script
@@ -342,7 +360,11 @@
   const tgUser = tg?.initDataUnsafe?.user || null;
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
-  let currentLanguage = localStorage.getItem('mini_app_language') || defaultLanguage || 'en';
+  const supportedLanguages = ['en', 'am'];
+  function normalizeLanguage(value) {
+    return supportedLanguages.includes(value) ? value : null;
+  }
+  let currentLanguage = normalizeLanguage(localStorage.getItem('mini_app_language')) || normalizeLanguage(defaultLanguage) || 'en';
   const MINI_I18N = {
     en: {
       registration: 'Registration',
@@ -377,6 +399,37 @@
         const iconText = icon ? icon.outerHTML : '';
         btn.innerHTML = `${iconText}${labels[key]}`;
       }
+    });
+    const desktopPicker = document.getElementById('languagePicker');
+    const mobilePicker = document.getElementById('languagePickerMobile');
+    if (desktopPicker) desktopPicker.value = lang;
+    if (mobilePicker) mobilePicker.value = lang;
+  }
+
+  function setLanguage(lang, notify = false) {
+    const normalized = normalizeLanguage(lang) || 'en';
+    currentLanguage = normalized;
+    localStorage.setItem('mini_app_language', currentLanguage);
+    applyLanguage(currentLanguage);
+    if (notify) {
+      showToast(currentLanguage === 'am' ? 'ቋንቋ ተቀይሯል' : 'Language updated', 'info');
+    }
+  }
+
+  function setupLanguageGate() {
+    const gate = document.getElementById('languageGate');
+    if (!gate) return;
+    const hasStoredLanguage = !!normalizeLanguage(localStorage.getItem('mini_app_language'));
+    if (hasStoredLanguage) {
+      gate.classList.add('hidden');
+      return;
+    }
+    gate.classList.remove('hidden');
+    gate.querySelectorAll('[data-language-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setLanguage(btn.dataset.languageChoice || defaultLanguage, true);
+        gate.classList.add('hidden');
+      });
     });
   }
 
@@ -857,17 +910,14 @@
       if (miniSession.is_admin) {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
       }
-      const languagePicker = document.getElementById('languagePicker');
-      if (languagePicker) {
-        languagePicker.value = currentLanguage;
-        languagePicker.addEventListener('change', () => {
-          currentLanguage = languagePicker.value;
-          localStorage.setItem('mini_app_language', currentLanguage);
-          applyLanguage(currentLanguage);
-          showToast(currentLanguage === 'am' ? 'ቋንቋ ተቀይሯል' : 'Language updated', 'info');
-        });
-      }
-      applyLanguage(currentLanguage);
+      ['languagePicker', 'languagePickerMobile'].forEach(id => {
+        const picker = document.getElementById(id);
+        if (!picker) return;
+        picker.value = currentLanguage;
+        picker.addEventListener('change', () => setLanguage(picker.value, true));
+      });
+      setLanguage(currentLanguage, false);
+      setupLanguageGate();
       await loadLocationOptions();
       document.getElementById('region')?.addEventListener('change', refreshLocationSelects);
       document.getElementById('zone')?.addEventListener('change', refreshLocationSelects);
