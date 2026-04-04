@@ -1,12 +1,12 @@
 {
   "registration": "Registration",
   "territories": "Territories",
-  "agent": "My Dashboars",
+  "agent": "Agent",
   "training": "Training",
   "rankings": "Rankings",
   "performance": "Performance",
   "apply_as_agent": "Apply as Agent",
   "submit_application": "Submit Application",
-  "my_training_modules": "My Training Modules",
-  "my_dashboard": "My Dashboars"
+  "my_training_modules": "Training Modules",
+  "my_dashboard": "Dashboard"
 }
