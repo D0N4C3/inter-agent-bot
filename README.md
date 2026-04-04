@@ -1,4 +1,4 @@
-# Inter Ethiopia Agent Registration Bot (Phase 4)
+# Inter Ethiopia Agent Registration Bot (Phase 5)
 
 Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 
@@ -15,6 +15,11 @@ Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 - English + Amharic language selection for user-facing flow.
 - Incomplete application draft recovery + reminder job endpoint.
 - File validation (size/format) and safer randomized storage filenames.
+- Telegram Mini App UI endpoint for registration with map-enabled territory selection.
+- GPS nearest-territory suggestions.
+- Agent-side dashboard APIs (status, territory, training, profile updates).
+- Performance event tracking APIs for sales/installers.
+- Ranking APIs for top sales agents and top installers.
 
 ## 1) Setup
 
@@ -62,6 +67,18 @@ Main Telegram menu also includes:
 Background job endpoint:
 
 - `POST /jobs/remind-incomplete` (sends reminder messages for stale drafts).
+
+## 3.1) Mini App + Platform APIs
+
+- `GET /mini-app` — Telegram mini app ready UI form with map interaction.
+- `POST /api/mini-app/register` — register directly from mini app payload.
+- `GET /api/territories/map` — map dataset (with coordinates, availability).
+- `POST /api/territories/nearest` — GPS-based nearest available territories.
+- `GET /api/agent/dashboard/<telegram_user_id>` — agent dashboard payload.
+- `PATCH /api/agent/dashboard/<telegram_user_id>/profile` — agent profile updates.
+- `POST /api/agent/training/<application_id>` — mark training module completion.
+- `POST /api/performance/events` — admin-auth performance events (sales/jobs/training).
+- `GET /api/rankings` — top sales and installer ranking feed.
 
 ## 4) Admin dashboard
 

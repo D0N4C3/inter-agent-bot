@@ -1,5 +1,6 @@
 import smtplib
 import uuid
+from math import asin, cos, radians, sin, sqrt
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -23,6 +24,12 @@ VALID_AGENT_TAGS = {
     "Sales Agent",
     "Installer Agent",
     "Hybrid",
+}
+
+VALID_PERFORMANCE_EVENT_TYPES = {
+    "sale_closed",
+    "installer_job_completed",
+    "training_completed",
 }
 
 
@@ -153,6 +160,21 @@ def get_applications(region: str | None = None, applicant_type: str | None = Non
     return query.execute().data or []
 
 
+def get_application_by_telegram_user(telegram_user_id: str) -> dict | None:
+    client = get_supabase()
+    result = (
+        client.table("agent_applications")
+        .select("*")
+        .eq("telegram_user_id", telegram_user_id)
+        .order("submitted_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]
+    return None
+
+
 def get_latest_status_by_telegram_user(telegram_user_id: str) -> str | None:
     client = get_supabase()
     result = (
@@ -232,6 +254,24 @@ def list_open_territories(region: str | None = None, zone: str | None = None, wo
     return query.limit(10).execute().data or []
 
 
+def list_territories_for_map(
+    region: str | None = None,
+    zone: str | None = None,
+    woreda: str | None = None,
+) -> list[dict]:
+    client = get_supabase()
+    query = client.table("territories").select(
+        "territory_id,region,zone,woreda,kebele,village,latitude,longitude,is_locked,availability_status"
+    )
+    if region:
+        query = query.eq("region", region)
+    if zone:
+        query = query.eq("zone", zone)
+    if woreda:
+        query = query.eq("woreda", woreda)
+    return query.limit(500).execute().data or []
+
+
 def territory_is_available(
     preferred_territory: str,
     region: str | None = None,
@@ -282,6 +322,7 @@ def lock_territory_for_application(application_id: str, region: str, zone: str, 
         "village": village,
         "is_locked": True,
         "assigned_application_id": application_id,
+        "availability_status": "assigned",
     }
 
     if lookup.data:
@@ -289,6 +330,31 @@ def lock_territory_for_application(application_id: str, region: str, zone: str, 
         client.table("territories").update(territory_payload).eq("territory_id", territory_id).execute()
     else:
         client.table("territories").insert(territory_payload).execute()
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    earth_radius_km = 6371.0
+    d_lat = radians(lat2 - lat1)
+    d_lon = radians(lon2 - lon1)
+    a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lon / 2) ** 2
+    return 2 * earth_radius_km * asin(sqrt(a))
+
+
+def suggest_nearest_territories(latitude: float, longitude: float, limit: int = 5) -> list[dict]:
+    territories = list_territories_for_map()
+    candidates = []
+    for row in territories:
+        if row.get("is_locked"):
+            continue
+        lat = row.get("latitude")
+        lon = row.get("longitude")
+        if lat is None or lon is None:
+            continue
+        distance_km = _haversine_km(latitude, longitude, float(lat), float(lon))
+        row["distance_km"] = round(distance_km, 2)
+        candidates.append(row)
+    candidates.sort(key=lambda item: item["distance_km"])
+    return candidates[: max(limit, 1)]
 
 
 def update_application_status(
@@ -343,6 +409,134 @@ def update_application_status(
     result = client = get_supabase()
     updated = client.table("agent_applications").update(updates).eq("application_id", application_id).execute()
     return updated.data[0]
+
+
+def create_performance_event(
+    application_id: str,
+    event_type: str,
+    event_value: float,
+    metadata: dict | None = None,
+    occurred_at: str | None = None,
+) -> dict:
+    if event_type not in VALID_PERFORMANCE_EVENT_TYPES:
+        raise ValueError("Invalid performance event type")
+    application = get_application(application_id)
+    if not application:
+        raise ValueError("Application not found")
+    client = get_supabase()
+    payload = {
+        "application_id": application_id,
+        "event_type": event_type,
+        "event_value": event_value,
+        "metadata": metadata or {},
+        "occurred_at": occurred_at or datetime.now(timezone.utc).isoformat(),
+    }
+    result = client.table("agent_performance_events").insert(payload).execute()
+    return result.data[0]
+
+
+def get_agent_dashboard(telegram_user_id: str) -> dict | None:
+    application = get_application_by_telegram_user(telegram_user_id)
+    if not application:
+        return None
+    client = get_supabase()
+    metrics = (
+        client.table("agent_performance_events")
+        .select("event_type,event_value,occurred_at")
+        .eq("application_id", application["application_id"])
+        .order("occurred_at", desc=True)
+        .limit(50)
+        .execute()
+        .data
+        or []
+    )
+    training = (
+        client.table("agent_training_progress")
+        .select("module_key,completed,completed_at")
+        .eq("application_id", application["application_id"])
+        .execute()
+        .data
+        or []
+    )
+    return {
+        "profile": {
+            "application_id": application["application_id"],
+            "full_name": application["full_name"],
+            "phone": application["phone"],
+            "applicant_type": application["applicant_type"],
+            "agent_tag": application.get("agent_tag"),
+            "status": application.get("status"),
+        },
+        "territory": {
+            "region": application["region"],
+            "zone": application["zone"],
+            "woreda": application["woreda"],
+            "kebele": application["kebele"],
+            "village": application["preferred_territory"],
+        },
+        "training": training,
+        "performance_events": metrics,
+    }
+
+
+def update_agent_profile(telegram_user_id: str, updates: dict) -> dict:
+    application = get_application_by_telegram_user(telegram_user_id)
+    if not application:
+        raise ValueError("Application not found")
+    allowed_fields = {"phone", "work_type", "internal_remarks"}
+    safe_updates = {key: value for key, value in updates.items() if key in allowed_fields and value is not None}
+    if not safe_updates:
+        return application
+    client = get_supabase()
+    result = (
+        client.table("agent_applications")
+        .update(safe_updates)
+        .eq("application_id", application["application_id"])
+        .execute()
+    )
+    return result.data[0]
+
+
+def upsert_training_progress(application_id: str, module_key: str, completed: bool) -> dict:
+    client = get_supabase()
+    existing = (
+        client.table("agent_training_progress")
+        .select("progress_id")
+        .eq("application_id", application_id)
+        .eq("module_key", module_key)
+        .limit(1)
+        .execute()
+    )
+    payload = {
+        "application_id": application_id,
+        "module_key": module_key,
+        "completed": completed,
+        "completed_at": datetime.now(timezone.utc).isoformat() if completed else None,
+    }
+    if existing.data:
+        progress_id = existing.data[0]["progress_id"]
+        result = client.table("agent_training_progress").update(payload).eq("progress_id", progress_id).execute()
+    else:
+        result = client.table("agent_training_progress").insert(payload).execute()
+    return result.data[0]
+
+
+def get_rankings() -> dict:
+    client = get_supabase()
+    sales = (
+        client.rpc("top_sales_agents", {"result_limit": 10}).execute().data
+        if hasattr(client, "rpc")
+        else []
+    )
+    installers = (
+        client.rpc("top_installer_agents", {"result_limit": 10}).execute().data
+        if hasattr(client, "rpc")
+        else []
+    )
+    return {
+        "top_sales_agents": sales or [],
+        "top_installers": installers or [],
+    }
 
 
 def send_notification_email(application: dict) -> None:

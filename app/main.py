@@ -23,21 +23,29 @@ from app.services import (
     delete_application_draft,
     get_application_draft,
     get_application,
+    get_agent_dashboard,
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
     get_applications,
+    get_rankings,
     get_stale_drafts,
     is_bot_admin,
+    list_territories_for_map,
     mark_draft_reminder_sent,
     save_application,
     save_application_draft,
     send_admin_telegram_alert,
     send_notification_email,
+    suggest_nearest_territories,
     territory_is_available,
+    update_agent_profile,
     update_application_status,
+    upsert_training_progress,
     upload_telegram_file,
     VALID_AGENT_TAGS,
+    VALID_PERFORMANCE_EVENT_TYPES,
     VALID_STATUSES,
+    create_performance_event,
     list_open_territories,
 )
 
@@ -1038,3 +1046,237 @@ def admin_export() -> Response:
         mimetype=mimetype,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.route("/mini-app", methods=["GET"])
+def mini_app() -> Response:
+    html = f"""
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>{settings.mini_app_name}</title>
+      <style>
+        body {{ font-family: Inter, Arial, sans-serif; padding: 16px; background: #f5f8ff; }}
+        .card {{ background: white; border-radius: 12px; padding: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }}
+        input, select, button {{ width: 100%; margin: 6px 0; padding: 10px; border: 1px solid #d8e2f0; border-radius: 8px; }}
+        button {{ background: {settings.mini_app_primary_color}; color: white; border: none; font-weight: 600; }}
+        #map {{ height: 260px; border-radius: 12px; margin: 12px 0; }}
+      </style>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    </head>
+    <body>
+      <div class="card">
+        <h3>🚀 {settings.mini_app_name}</h3>
+        <p>Complete your registration with map-based territory selection.</p>
+        <input id="telegram_user_id" placeholder="Telegram User ID" />
+        <input id="full_name" placeholder="Full name" />
+        <input id="phone" placeholder="Phone (+2519...)" />
+        <input id="region" placeholder="Region" />
+        <input id="zone" placeholder="Zone" />
+        <input id="woreda" placeholder="Woreda" />
+        <input id="kebele" placeholder="Kebele" />
+        <input id="village" placeholder="Village" />
+        <input id="preferred_territory" placeholder="Preferred Territory" />
+        <button onclick="suggestNearest()">Suggest nearest territories by GPS</button>
+        <div id="map"></div>
+        <button onclick="submitRegistration()">Submit Registration</button>
+        <pre id="result"></pre>
+      </div>
+      <script>
+        const map = L.map('map').setView([8.9806, 38.7578], 6);
+        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{ maxZoom: 19 }}).addTo(map);
+        let territoryMarkers = [];
+        let pickedLatLng = null;
+        map.on('click', (e) => {{
+          pickedLatLng = e.latlng;
+          document.getElementById('result').innerText = `Selected location: ${{e.latlng.lat.toFixed(5)}}, ${{e.latlng.lng.toFixed(5)}}`;
+        }});
+        async function loadTerritories() {{
+          const res = await fetch('/api/territories/map');
+          const data = await res.json();
+          territoryMarkers.forEach(m => m.remove());
+          territoryMarkers = [];
+          (data.items || []).forEach((t) => {{
+            if (t.latitude == null || t.longitude == null) return;
+            const color = t.is_locked ? '#e74c3c' : '#2ecc71';
+            const marker = L.circleMarker([t.latitude, t.longitude], {{radius: 7, color}}).addTo(map)
+              .bindPopup(`${{t.village}} (${{t.availability_status || (t.is_locked ? 'locked' : 'open')}})`);
+            territoryMarkers.push(marker);
+          }});
+        }}
+        async function suggestNearest() {{
+          if (!navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(async (pos) => {{
+            const r = await fetch('/api/territories/nearest', {{
+              method: 'POST',
+              headers: {{'Content-Type': 'application/json'}},
+              body: JSON.stringify({{latitude: pos.coords.latitude, longitude: pos.coords.longitude}})
+            }});
+            const data = await r.json();
+            document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+          }});
+        }}
+        async function submitRegistration() {{
+          const payload = {{
+            telegram_user_id: document.getElementById('telegram_user_id').value,
+            full_name: document.getElementById('full_name').value,
+            phone: document.getElementById('phone').value,
+            region: document.getElementById('region').value,
+            zone: document.getElementById('zone').value,
+            woreda: document.getElementById('woreda').value,
+            kebele: document.getElementById('kebele').value,
+            village: document.getElementById('village').value,
+            preferred_territory: document.getElementById('preferred_territory').value,
+            applicant_type: 'sales_installer',
+            experience: true,
+            experience_years: 1,
+            work_type: 'Sales and installation',
+            has_shop: true,
+            can_install: true,
+            id_file_front_url: 'mini-app-placeholder',
+            id_file_back_url: 'mini-app-placeholder',
+            profile_photo_url: null,
+            picked_latitude: pickedLatLng ? pickedLatLng.lat : null,
+            picked_longitude: pickedLatLng ? pickedLatLng.lng : null
+          }};
+          const res = await fetch('/api/mini-app/register', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify(payload)
+          }});
+          document.getElementById('result').innerText = JSON.stringify(await res.json(), null, 2);
+        }}
+        loadTerritories();
+      </script>
+    </body>
+    </html>
+    """
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/api/mini-app/register", methods=["POST"])
+def mini_app_register() -> dict:
+    payload = request.get_json(silent=True) or {}
+    required = [
+        "telegram_user_id", "full_name", "phone", "region", "zone", "woreda", "kebele", "village", "preferred_territory",
+    ]
+    missing = [field for field in required if not payload.get(field)]
+    if missing:
+        return {"ok": False, "error": f"Missing fields: {', '.join(missing)}"}, 400
+    if not territory_is_available(
+        payload["preferred_territory"],
+        region=payload.get("region"),
+        zone=payload.get("zone"),
+        woreda=payload.get("woreda"),
+        kebele=payload.get("kebele"),
+    ):
+        return {"ok": False, "error": "Territory is not available"}, 409
+
+    score = score_application(payload)
+    record = {
+        "telegram_user_id": str(payload["telegram_user_id"]),
+        "full_name": payload["full_name"],
+        "phone": payload["phone"],
+        "applicant_type": payload.get("applicant_type", "sales_installer"),
+        "region": payload["region"],
+        "zone": payload["zone"],
+        "woreda": payload["woreda"],
+        "kebele": payload["kebele"],
+        "village": payload["village"],
+        "experience": bool(payload.get("experience", False)),
+        "experience_years": int(payload.get("experience_years") or 0),
+        "work_type": payload.get("work_type", "N/A"),
+        "has_shop": bool(payload.get("has_shop", False)),
+        "can_install": bool(payload.get("can_install", False)),
+        "preferred_territory": payload["preferred_territory"],
+        "id_file_front_url": payload.get("id_file_front_url") or "mini-app-placeholder",
+        "id_file_back_url": payload.get("id_file_back_url") or "mini-app-placeholder",
+        "profile_photo_url": payload.get("profile_photo_url"),
+        "qualification_score": score.qualification_score,
+        "qualification_flag": score.qualification_flag,
+        "agent_tag": default_agent_tag(payload.get("applicant_type", "sales_installer")),
+        "performance_potential": "Medium",
+        "internal_remarks": payload.get("internal_remarks"),
+        "status": "Submitted",
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    saved = save_application(record)
+    send_notification_email(record)
+    send_admin_telegram_alert(record)
+    return {"ok": True, "application": saved}
+
+
+@app.route("/api/territories/map", methods=["GET"])
+def territories_map() -> dict:
+    items = list_territories_for_map(
+        region=request.args.get("region"),
+        zone=request.args.get("zone"),
+        woreda=request.args.get("woreda"),
+    )
+    return {"ok": True, "items": items}
+
+
+@app.route("/api/territories/nearest", methods=["POST"])
+def nearest_territories() -> dict:
+    payload = request.get_json(silent=True) or {}
+    latitude = payload.get("latitude")
+    longitude = payload.get("longitude")
+    if latitude is None or longitude is None:
+        return {"ok": False, "error": "latitude and longitude are required"}, 400
+    items = suggest_nearest_territories(float(latitude), float(longitude), settings.territory_suggestion_limit)
+    return {"ok": True, "items": items}
+
+
+@app.route("/api/agent/dashboard/<telegram_user_id>", methods=["GET"])
+def agent_dashboard_api(telegram_user_id: str) -> dict:
+    dashboard = get_agent_dashboard(telegram_user_id)
+    if not dashboard:
+        return {"ok": False, "error": "Agent not found"}, 404
+    dashboard["training_links"] = {
+        "pdf": settings.training_pdf_url,
+        "video": settings.training_video_url,
+        "sales_playbook": settings.sales_playbook_url,
+    }
+    return {"ok": True, "dashboard": dashboard}
+
+
+@app.route("/api/agent/dashboard/<telegram_user_id>/profile", methods=["PATCH"])
+def agent_profile_update_api(telegram_user_id: str) -> dict:
+    payload = request.get_json(silent=True) or {}
+    updated = update_agent_profile(telegram_user_id, payload)
+    return {"ok": True, "application": updated}
+
+
+@app.route("/api/agent/training/<application_id>", methods=["POST"])
+def agent_training_progress_api(application_id: str) -> dict:
+    payload = request.get_json(silent=True) or {}
+    module_key = str(payload.get("module_key") or "").strip()
+    if not module_key:
+        return {"ok": False, "error": "module_key is required"}, 400
+    completed = bool(payload.get("completed", False))
+    result = upsert_training_progress(application_id, module_key, completed)
+    return {"ok": True, "training_progress": result}
+
+
+@app.route("/api/performance/events", methods=["POST"])
+def performance_event_api() -> dict:
+    _require_admin()
+    payload = request.get_json(silent=True) or {}
+    application_id = str(payload.get("application_id") or "").strip()
+    event_type = str(payload.get("event_type") or "").strip()
+    if not application_id or event_type not in VALID_PERFORMANCE_EVENT_TYPES:
+        return {"ok": False, "error": "Valid application_id and event_type are required"}, 400
+    event = create_performance_event(
+        application_id=application_id,
+        event_type=event_type,
+        event_value=float(payload.get("event_value") or 0),
+        metadata=payload.get("metadata"),
+        occurred_at=payload.get("occurred_at"),
+    )
+    return {"ok": True, "event": event}
+
+
+@app.route("/api/rankings", methods=["GET"])
+def rankings_api() -> dict:
+    return {"ok": True, "rankings": get_rankings()}

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     training_pdf_url: str = "https://example.com/training/solar-installation-guide.pdf"
     training_video_url: str = "https://example.com/training/solar-installation-video"
     sales_playbook_url: str = "https://example.com/training/sales-playbook.pdf"
+    mini_app_name: str = "Inter Agent Platform"
+    mini_app_primary_color: str = "#165dff"
+    territory_suggestion_limit: int = 5
 
     @field_validator(
         "telegram_bot_token",
