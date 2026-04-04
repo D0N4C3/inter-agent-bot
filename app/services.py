@@ -691,6 +691,12 @@ def get_agent_dashboard(telegram_user_id: str) -> dict | None:
             "applicant_type": application["applicant_type"],
             "agent_tag": application.get("agent_tag"),
             "status": application.get("status"),
+            "work_type": application.get("work_type"),
+            "has_shop": application.get("has_shop"),
+            "business_name": application.get("business_name"),
+            "business_type": application.get("business_type"),
+            "business_years": application.get("business_years"),
+            "business_customers_weekly": application.get("business_customers_weekly"),
         },
         "territory": {
             "region": application["region"],
@@ -750,7 +756,16 @@ def update_agent_profile(telegram_user_id: str, updates: dict) -> dict:
     application = get_application_by_telegram_user(telegram_user_id)
     if not application:
         raise ValueError("Application not found")
-    allowed_fields = {"phone", "work_type", "internal_remarks"}
+    allowed_fields = {
+        "full_name",
+        "phone",
+        "work_type",
+        "internal_remarks",
+        "region",
+        "zone",
+        "woreda",
+        "preferred_territory",
+    }
     safe_updates = {key: value for key, value in updates.items() if key in allowed_fields and value is not None}
     if not safe_updates:
         return application
@@ -826,6 +841,10 @@ Experience: {'Yes' if application['experience'] else 'No'}
 Experience Years: {application['experience_years']}
 Work Type: {application['work_type']}
 Has Shop: {'Yes' if application['has_shop'] else 'No'}
+Business Name: {application.get('business_name')}
+Business Type: {application.get('business_type')}
+Business Age (Years): {application.get('business_years')}
+Average Weekly Customers: {application.get('business_customers_weekly')}
 Can Install Solar Systems: {'Yes' if application['can_install'] else 'No'}
 Preferred Territory: {application['preferred_territory']}
 ID Front File: {application['id_file_front_url']}
