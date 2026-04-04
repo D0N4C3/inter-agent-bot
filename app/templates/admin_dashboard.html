@@ -268,15 +268,27 @@ function setSelectOptions(selectId, values, placeholder, keepValue = true) {
 function syncFilterLocationOptions() {
   const region = document.getElementById('filter-region')?.value || '';
   const zone = document.getElementById('filter-zone')?.value || '';
-  setSelectOptions('filter-zone', getUniqueLocationValues('zone', { region }), 'All zones');
-  setSelectOptions('filter-woreda', getUniqueLocationValues('woreda', { region, zone }), 'All woredas');
+  const zoneSelect = document.getElementById('filter-zone');
+  const woredaSelect = document.getElementById('filter-woreda');
+  const zones = region ? getUniqueLocationValues('zone', { region }) : [];
+  const woredas = region && zone ? getUniqueLocationValues('woreda', { region, zone }) : [];
+  setSelectOptions('filter-zone', zones, 'All zones');
+  setSelectOptions('filter-woreda', woredas, 'All woredas');
+  if (zoneSelect) zoneSelect.disabled = !region;
+  if (woredaSelect) woredaSelect.disabled = !(region && zoneSelect?.value);
 }
 
 function syncTerritoryLocationOptions() {
   const region = document.getElementById('territory-region')?.value || '';
   const zone = document.getElementById('territory-zone')?.value || '';
-  setSelectOptions('territory-zone', getUniqueLocationValues('zone', { region }), 'Select zone');
-  setSelectOptions('territory-woreda', getUniqueLocationValues('woreda', { region, zone }), 'Select woreda');
+  const zoneSelect = document.getElementById('territory-zone');
+  const woredaSelect = document.getElementById('territory-woreda');
+  const zones = region ? getUniqueLocationValues('zone', { region }) : [];
+  const woredas = region && zone ? getUniqueLocationValues('woreda', { region, zone }) : [];
+  setSelectOptions('territory-zone', zones, 'Select zone');
+  setSelectOptions('territory-woreda', woredas, 'Select woreda');
+  if (zoneSelect) zoneSelect.disabled = !region;
+  if (woredaSelect) woredaSelect.disabled = !(region && zoneSelect?.value);
 }
 
 function toggleEdit(id) {
