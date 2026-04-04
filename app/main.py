@@ -54,7 +54,7 @@ app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
 
-SUPPORTED_LANGUAGES = {"en", "am"}
+SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
     "Addis Ababa",
     "Amhara",
@@ -68,7 +68,13 @@ ETHIOPIA_REGIONS = [
 ]
 YES_NO_KEYBOARD = [["Yes", "No"]]
 YES_NO_KEYBOARD_AM = [["አዎ", "አይደለም"]]
-LANGUAGE_KEYBOARD = [["English", "አማርኛ"]]
+LANGUAGE_KEYBOARD = [["English", "አማርኛ"], ["Afaan Oromo", "ትግርኛ"]]
+LANGUAGE_LABELS = {
+    "English": "en",
+    "አማርኛ": "am",
+    "Afaan Oromo": "om",
+    "ትግርኛ": "ti",
+}
 
 I18N = load_translations()
 
@@ -616,9 +622,9 @@ async def _telegram_webhook(update: dict) -> dict:
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return {"ok": True}
 
-        if text in {"English", "አማርኛ"}:
+        if text in LANGUAGE_LABELS:
             sessions.setdefault(user_id, {})
-            sessions[user_id]["language"] = "en" if text == "English" else "am"
+            sessions[user_id]["language"] = LANGUAGE_LABELS[text]
             sessions[user_id]["awaiting_language"] = False
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
             return {"ok": True}

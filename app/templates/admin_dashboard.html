@@ -116,6 +116,8 @@
           <select name="default_mini_app_language">
             <option value="en" {% if mini_app_default_language == "en" %}selected{% endif %}>Mini app default: English</option>
             <option value="am" {% if mini_app_default_language == "am" %}selected{% endif %}>Mini app default: አማርኛ</option>
+            <option value="om" {% if mini_app_default_language == "om" %}selected{% endif %}>Mini app default: Afaan Oromo</option>
+            <option value="ti" {% if mini_app_default_language == "ti" %}selected{% endif %}>Mini app default: ትግርኛ</option>
           </select>
           <input name="updated_by" placeholder="Updated by (optional)" />
           <button class="btn btn-primary" type="submit">Save Settings</button>

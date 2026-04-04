@@ -8,6 +8,8 @@ from app.config import settings
 _TRANSLATIONS_PATH = Path(__file__).resolve().parent / "data" / "translations.json"
 _MINI_APP_STRINGS_EN_PATH = Path(__file__).resolve().parent / "data" / "mini_app_strings_en.json"
 _MINI_APP_STRINGS_AM_PATH = Path(__file__).resolve().parent / "data" / "mini_app_strings_am.json"
+_MINI_APP_STRINGS_OM_PATH = Path(__file__).resolve().parent / "data" / "mini_app_strings_om.json"
+_MINI_APP_STRINGS_TI_PATH = Path(__file__).resolve().parent / "data" / "mini_app_strings_ti.json"
 
 
 def load_translations() -> dict[str, dict[str, str]]:
@@ -22,4 +24,8 @@ def load_mini_app_strings() -> dict[str, dict[str, str]]:
         en = json.load(file)
     with _MINI_APP_STRINGS_AM_PATH.open(encoding="utf-8") as file:
         am = json.load(file)
-    return {"en": en, "am": am}
+    with _MINI_APP_STRINGS_OM_PATH.open(encoding="utf-8") as file:
+        om = json.load(file)
+    with _MINI_APP_STRINGS_TI_PATH.open(encoding="utf-8") as file:
+        ti = json.load(file)
+    return {"en": en, "am": am, "om": om, "ti": ti}
