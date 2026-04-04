@@ -105,6 +105,17 @@ body {
 }
 .card-title { font-size:13.5px; font-weight:600; letter-spacing:-0.2px; }
 .card-meta  { font-size:12px; color:var(--text-2); }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.module-body { padding:14px 18px; display:flex; flex-direction:column; gap:10px; }
+.stack-form, .inline-form {
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px;
+}
+.stack-form input, .stack-form select, .inline-form input, .inline-form select {
+  background:var(--surface); border:1px solid var(--border); color:var(--text);
+  border-radius:8px; padding:7px 9px; font-size:12px;
+}
+.inline-form span { color:var(--text-2); font-size:11.5px; }
 
 /* ─── FILTER CARD ──────────────────────────────────── */
 .filter-body { padding:18px 24px; }
@@ -306,5 +317,6 @@ td { padding:13px 16px; color:var(--text); vertical-align:middle; }
   .stats-row  { grid-template-columns:repeat(2,1fr); }
   .filter-fields { grid-template-columns:1fr; }
   .edit-grid { grid-template-columns:1fr 1fr; }
+  .grid-2 { grid-template-columns:1fr; }
   .hide-sm { display:none; }
 }
