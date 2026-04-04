@@ -681,8 +681,14 @@
   function refreshLocationSelects() {
     const reg = document.getElementById('region')?.value || '';
     const zon = document.getElementById('zone')?.value || '';
-    setSelectOptions('zone', getUniqueValues('zone', { region: reg }), 'Select zone');
-    setSelectOptions('woreda', getUniqueValues('woreda', { region: reg, zone: zon }), 'Select woreda');
+    const zoneSelect = document.getElementById('zone');
+    const woredaSelect = document.getElementById('woreda');
+    const zones = reg ? getUniqueValues('zone', { region: reg }) : [];
+    const woredas = reg && zon ? getUniqueValues('woreda', { region: reg, zone: zon }) : [];
+    setSelectOptions('zone', zones, 'Select zone');
+    setSelectOptions('woreda', woredas, 'Select woreda');
+    if (zoneSelect) zoneSelect.disabled = !reg;
+    if (woredaSelect) woredaSelect.disabled = !(reg && zoneSelect?.value);
   }
 
   async function loadLocationOptions() {
@@ -694,6 +700,10 @@
     setSelectOptions('filter_region', data.options?.regions || [], 'All regions');
     setSelectOptions('filter_zone', data.options?.zones || [], 'All zones');
     setSelectOptions('filter_woreda', data.options?.woredas || [], 'All woredas');
+    const zoneSelect = document.getElementById('zone');
+    const woredaSelect = document.getElementById('woreda');
+    if (zoneSelect) zoneSelect.disabled = true;
+    if (woredaSelect) woredaSelect.disabled = true;
     refreshLocationSelects();
   }
 
