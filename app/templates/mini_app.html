@@ -28,7 +28,7 @@
         <div class="sidebar-name">{{ mini_app_name }}</div>
       </div>
       <div class="field" style="margin:8px 0 0 0;">
-        <label style="font-size:12px;opacity:.8;">Language</label>
+        <label style="font-size:12px;opacity:.8;" data-i18n="language">Language</label>
         <select id="languagePicker" class="premium-select">
           <option value="en">English</option>
           <option value="am">አማርኛ</option>
@@ -36,7 +36,7 @@
       </div>
       <div class="user-chip">
         <div class="user-avatar">👤</div>
-        <div class="user-name" id="welcomeUser">Loading…</div>
+        <div class="user-name" id="welcomeUser" data-i18n="loading_user">Loading…</div>
       </div>
     </div>
 
@@ -328,7 +328,7 @@
 <nav class="bottom-nav" id="bottomNav">
   <button class="bnav-btn active" data-tab="registration">
     <span class="bnav-icon">📋</span>
-    <span class="bnav-label">Register</span>
+    <span class="bnav-label" data-i18n="register">Register</span>
   </button>
   <button class="bnav-btn" data-tab="territories">
     <span class="bnav-icon">🗺</span>
@@ -354,8 +354,8 @@
 
 <div id="languageGate" class="language-gate hidden" role="dialog" aria-modal="true" aria-labelledby="languageGateTitle">
   <div class="language-gate-card">
-    <h2 id="languageGateTitle">Choose your language</h2>
-    <p>እባክዎ ቋንቋዎን ይምረጡ</p>
+    <h2 id="languageGateTitle" data-i18n="choose_language">Choose your language</h2>
+    <p data-i18n="choose_language_am">እባክዎ ቋንቋዎን ይምረጡ</p>
     <div class="language-gate-actions">
       <button type="button" class="btn btn-primary" data-language-choice="en">English</button>
       <button type="button" class="btn btn-secondary" data-language-choice="am">አማርኛ</button>
@@ -389,6 +389,15 @@
 
   if (tg) { tg.ready(); tg.expand(); }
 
+  function t(key, params = {}) {
+    const labels = MINI_I18N[currentLanguage] || MINI_I18N.en || {};
+    let text = labels[key] || MINI_I18N.en?.[key] || key;
+    Object.entries(params).forEach(([k, v]) => {
+      text = text.replace(`{${k}}`, String(v));
+    });
+    return text;
+  }
+
   function applyLanguage(lang) {
     const labels = MINI_I18N[lang] || MINI_I18N.en;
     document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
@@ -403,6 +412,11 @@
         btn.innerHTML = `${iconText}${labels[key]}`;
       }
     });
+    document.querySelectorAll('[data-i18n]').forEach(node => {
+      const key = node.dataset.i18n;
+      if (!key) return;
+      node.textContent = labels[key] || MINI_I18N.en?.[key] || node.textContent;
+    });
     const desktopPicker = document.getElementById('languagePicker');
     const mobilePicker = document.getElementById('languagePickerMobile');
     if (desktopPicker) desktopPicker.value = lang;
@@ -415,7 +429,7 @@
     localStorage.setItem('mini_app_language', currentLanguage);
     applyLanguage(currentLanguage);
     if (notify) {
-      showToast(currentLanguage === 'am' ? 'ቋንቋ ተቀይሯል' : 'Language updated', 'info');
+      showToast(t('language_updated'), 'info');
     }
   }
 
@@ -469,7 +483,7 @@
   }
 
   // ── Button loading state ───────────────────────────
-  function setBtnLoading(btn, loading, label = 'Loading…') {
+  function setBtnLoading(btn, loading, label = t('loading')) {
     if (!btn) return;
     if (loading) {
       btn.dataset.orig = btn.textContent;
@@ -538,7 +552,7 @@
   function initMap() {
     if (!window.google?.maps) {
       if (mapEl) {
-        mapEl.innerHTML = '<div class="p-3 text-danger">Google Maps SDK is not configured.</div>';
+        mapEl.innerHTML = `<div class="p-3 text-danger">${t('map_not_configured')}</div>`;
       }
       return;
     }
@@ -621,17 +635,17 @@
   }
 
   async function handleLoadTerritories(btn) {
-    setBtnLoading(btn, true, 'Refreshing…');
+    setBtnLoading(btn, true, t('refreshing'));
     try {
-      if (!map) throw new Error('Google Maps is not available.');
+      if (!map) throw new Error(t('google_maps_unavailable'));
       const n = await loadTerritories();
       setResult(`Loaded ${n} territories.`);
-    } catch(e) { setResult({ok:false, error:e.message || 'Failed to load territories.'}); }
+    } catch(e) { setResult({ok:false, error:e.message || t('failed_load_territories')}); }
     finally { setBtnLoading(btn, false); }
   }
 
   async function suggestNearest() {
-    if (!navigator.geolocation) { setResult({ok:false, error:'Geolocation not available.'}); return; }
+    if (!navigator.geolocation) { setResult({ok:false, error:t('geolocation_not_available')}); return; }
     navigator.geolocation.getCurrentPosition(async pos => {
       try {
         const userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -642,7 +656,7 @@
         });
         const data = await r.json();
         if (!r.ok || !data.ok) {
-          setResult(data?.error || 'Unable to load nearest territories.');
+          setResult(data?.error || t('unable_load_nearest'));
           return;
         }
         if (!map) {
@@ -655,7 +669,7 @@
         if (!nearby.length) {
           map.setCenter(userLoc);
           map.setZoom(11);
-          setResult({message:'No nearby open territories found.'});
+          setResult({message:t('no_nearby')});
           return;
         }
         map.setCenter(userLoc);
@@ -675,12 +689,12 @@
           nearestMarkers.push(marker);
         });
         pickedLatLng = userLoc;
-        setResult({message:`Found ${nearby.length} nearby territories. Map centered to your location.`});
+        setResult({message:t('nearby_found', { count: nearby.length })});
       } catch (e) {
-        setResult({ok:false, error:e.message || 'Failed to find nearby territories.'});
+        setResult({ok:false, error:e.message || t('failed_nearby')});
       }
     }, err => {
-      setResult({ok:false, error:`Unable to read GPS location: ${err.message}`});
+      setResult({ok:false, error:t('gps_error', { message: err.message })});
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   }
 
@@ -719,7 +733,7 @@
   async function loadLocationOptions() {
     const res = await apiFetch('/api/locations/options');
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Failed to load location options');
+    if (!data.ok) throw new Error(data.error || t('failed_location_options'));
     locationRows = data.options?.rows || [];
     setSelectOptions('region', data.options?.regions || [], 'Select region');
     setSelectOptions('filter_region', data.options?.regions || [], 'All regions');
@@ -744,7 +758,7 @@
     formData.append('file', file);
     const res = await apiFetch('/api/mini-app/upload', { method: 'POST', body: formData });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    if (!data.ok) throw new Error(data.error || t('upload_failed'));
     return data.url;
   }
 
@@ -785,19 +799,19 @@
   }
 
   async function handleSubmitRegistration(btn) {
-    setBtnLoading(btn, true, 'Submitting…');
+    setBtnLoading(btn, true, t('submitting'));
     try {
       const res = await submitRegistration();
       const data = await res.json();
-      setResult(data.ok ? 'Registration submitted successfully! 🎉' : data);
-    } catch(e) { setResult({ok:false, error:e.message || 'Submission failed. Please try again.'}); }
+      setResult(data.ok ? t('registration_success') : data);
+    } catch(e) { setResult({ok:false, error:e.message || t('submission_failed')}); }
     finally { setBtnLoading(btn, false); }
   }
 
   // ── Dashboard ─────────────────────────────────────
   async function loadDashboard() {
     const uid = miniSession?.telegram_user_id;
-    if (!uid) { setResult({ok:false, error:'Unable to identify Telegram user'}); return; }
+    if (!uid) { setResult({ok:false, error:t('unable_identify_user')}); return; }
     const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}`);
     const data = await res.json();
     dashboardData = data.dashboard || null;
@@ -819,31 +833,31 @@
       const cardName = document.getElementById('profileCardName');
       const cardMeta = document.getElementById('profileCardMeta');
       const cardEl   = document.getElementById('agentProfileCard');
-      if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || 'Agent';
+      if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || t('agent_fallback');
       if (cardMeta) cardMeta.textContent = [profile.agent_tag, profile.status || data.dashboard.status].filter(Boolean).join(' · ');
       if (cardEl)   cardEl.style.display = '';
       const statusPill = document.getElementById('profileStatusPill');
       if (statusPill) {
-        statusPill.textContent = profile.status || 'Submitted';
+        statusPill.textContent = profile.status || t('submitted');
         statusPill.dataset.status = (profile.status || '').toLowerCase();
       }
       renderDashboardHighlights(data.dashboard);
       renderTrainingModules();
     }
-    setResult(data.ok ? 'Dashboard loaded.' : data);
+    setResult(data.ok ? t('dashboard_loaded') : data);
   }
 
   async function handleLoadDashboard(btn) {
-    setBtnLoading(btn, true, 'Loading…');
+    setBtnLoading(btn, true, t('loading'));
     try { await loadDashboard(); }
-    catch(e) { setResult({ok:false, error:'Failed to load dashboard.'}); }
+    catch(e) { setResult({ok:false, error:t('failed_dashboard')}); }
     finally  { setBtnLoading(btn, false); }
   }
 
   // ── Profile update ────────────────────────────────
   async function updateProfile() {
     const uid = miniSession?.telegram_user_id;
-    if (!uid) { setResult({ok:false, error:'Unable to identify Telegram user'}); return; }
+    if (!uid) { setResult({ok:false, error:t('unable_identify_user')}); return; }
     const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}/profile`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
@@ -858,34 +872,34 @@
       })
     });
     const data = await res.json();
-    setResult(data.ok ? 'Profile updated.' : data);
+    setResult(data.ok ? t('profile_updated') : data);
   }
 
   async function handleUpdateProfile(btn) {
-    setBtnLoading(btn, true, 'Saving…');
+    setBtnLoading(btn, true, t('saving'));
     try { await updateProfile(); }
-    catch(e) { setResult({ok:false, error:'Update failed.'}); }
+    catch(e) { setResult({ok:false, error:t('update_failed')}); }
     finally  { setBtnLoading(btn, false); }
   }
 
   // ── Training ──────────────────────────────────────
   async function markTraining(moduleKey, completed) {
     const appId = dashboardData?.profile?.application_id;
-    if (!appId || !moduleKey) { setResult({ok:false, error:'Dashboard not loaded yet.'}); return; }
+    if (!appId || !moduleKey) { setResult({ok:false, error:t('dashboard_not_loaded')}); return; }
     const res = await apiFetch(`/api/agent/training/${encodeURIComponent(appId)}`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({module_key: moduleKey, completed})
     });
     const data = await res.json();
-    setResult(data.ok ? 'Training progress saved.' : data);
+    setResult(data.ok ? t('training_saved') : data);
     if (data.ok) await loadDashboard();
   }
 
   async function handleMarkTraining(btn, moduleKey, completed) {
-    setBtnLoading(btn, true, 'Saving…');
+    setBtnLoading(btn, true, t('saving'));
     try { await markTraining(moduleKey, completed); }
-    catch(e) { setResult({ok:false, error:'Failed to save training progress.'}); }
+    catch(e) { setResult({ok:false, error:t('failed_training_save')}); }
     finally  { setBtnLoading(btn, false); }
   }
 
@@ -895,7 +909,7 @@
     const modules = dashboardData?.training_modules || [];
     const completedSet = new Set((dashboardData?.training || []).filter(item => item.completed).map(item => item.module_key));
     if (!modules.length) {
-      container.innerHTML = '<p class="muted">Training modules will appear after your application is approved.</p>';
+      container.innerHTML = `<p class="muted">${t('training_waiting_approval')}</p>`;
       return;
     }
     container.innerHTML = modules.map(module => {
@@ -917,7 +931,7 @@
               ${attachments.playbook ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.playbook}">Playbook</a>` : ''}
             </div>
             <button class="btn ${done ? 'btn-secondary' : 'btn-primary'} training-card__action"
-              onclick="handleMarkTraining(this, '${module.module_key}', ${done ? 'false' : 'true'})">${done ? 'Mark Incomplete' : 'Mark Complete'}</button>
+              onclick="handleMarkTraining(this, '${module.module_key}', ${done ? 'false' : 'true'})">${done ? t('mark_incomplete') : t('mark_complete')}</button>
           </div>
         </div>
       `;
@@ -949,7 +963,7 @@
   async function submitPerformance() {
     let metadata = {};
     try { metadata = JSON.parse(document.getElementById('perf_metadata').value || '{}'); }
-    catch { setResult({ok:false, error:'Metadata must be valid JSON'}); return; }
+    catch { setResult({ok:false, error:t('metadata_json_required')}); return; }
     const res = await apiFetch('/api/performance/events', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -965,9 +979,9 @@
   }
 
   async function handleSubmitPerformance(btn) {
-    setBtnLoading(btn, true, 'Submitting…');
+    setBtnLoading(btn, true, t('submitting'));
     try { await submitPerformance(); }
-    catch(e) { setResult({ok:false, error:'Failed to submit event.'}); }
+    catch(e) { setResult({ok:false, error:t('failed_submit_event')}); }
     finally  { setBtnLoading(btn, false); }
   }
 
@@ -996,7 +1010,7 @@
     document.getElementById('rankingsContainer').innerHTML =
       drawRankList('Top Sales Agents',     '💰', data.rankings?.top_sales_agents  || [], 'total_sales',     ' sales') +
       drawRankList('Top Installer Agents', '🔧', data.rankings?.top_installers    || data.rankings?.top_installer_agents || [], 'completed_jobs', ' jobs');
-    setResult('Rankings refreshed.');
+    setResult(t('rankings_refreshed'));
   }
 
   // drawRankTable kept for backward-compat
@@ -1005,9 +1019,9 @@
   }
 
   async function handleLoadRankings(btn) {
-    setBtnLoading(btn, true, 'Loading…');
+    setBtnLoading(btn, true, t('loading'));
     try { await loadRankings(); }
-    catch(e) { setResult({ok:false, error:'Failed to load rankings.'}); }
+    catch(e) { setResult({ok:false, error:t('failed_rankings')}); }
     finally  { setBtnLoading(btn, false); }
   }
 
@@ -1020,7 +1034,7 @@
       const data = await res.json();
       if (!data.ok) { setResult(data); return; }
       miniSession = data.session;
-      const label = miniSession.user?.first_name || tgUser?.first_name || 'Agent';
+      const label = miniSession.user?.first_name || tgUser?.first_name || t('agent_fallback');
       const userEl = document.getElementById('welcomeUser');
       if (userEl) userEl.textContent = label;
       if (miniSession.is_admin) {
@@ -1054,7 +1068,7 @@
       if (map) await loadTerritories();
       await loadRankings();
     } catch(e) {
-      console.warn('initMiniApp error:', e);
+      console.warn(t('init_error'), e);
     }
   }
 

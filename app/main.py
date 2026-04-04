@@ -83,6 +83,10 @@ def tr(user_id: int, key: str) -> str:
     return I18N.get(lang, I18N["en"]).get(key, I18N["en"].get(key, key))
 
 
+def trf(user_id: int, key: str, **kwargs) -> str:
+    return tr(user_id, key).format(**kwargs)
+
+
 def language_selection_pending(user_id: int) -> bool:
     return sessions.get(user_id, {}).get("awaiting_language", False)
 
@@ -346,7 +350,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     )
     if not territory_valid:
         session["step_index"] = next(i for i, (k, _) in enumerate(QUESTION_FLOW) if k == "preferred_territory")
-        await send_message(chat_id, "Sorry, this area is already reserved. Please select another nearby area.")
+        await send_message(chat_id, tr(user_id, "territory_unavailable"))
         return
 
     answers["territory_valid"] = True
@@ -402,7 +406,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         doc = message.get("document")
         photos = message.get("photo", [])
         if not doc and not photos:
-            await send_message(chat_id, "Please upload a file or image.")
+            await send_message(chat_id, tr(user_id, "file_required"))
             return
 
         file_id = doc["file_id"] if doc else photos[-1]["file_id"]
@@ -415,7 +419,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         file_size = int(file_info["result"].get("file_size") or 0)
         max_size = settings.max_upload_size_mb * 1024 * 1024
         if file_size > max_size:
-            await send_message(chat_id, f"File too large. Max size is {settings.max_upload_size_mb}MB.")
+            await send_message(chat_id, trf(user_id, "file_too_large", size=settings.max_upload_size_mb))
             return
         file_url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
 
@@ -427,7 +431,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         content_type = guessed_type or "application/octet-stream"
         allowed_types = {"image/jpeg", "image/jpg", "image/png", "application/pdf"}
         if content_type not in allowed_types:
-            await send_message(chat_id, "Unsupported file format. Please upload JPG, PNG, or PDF.")
+            await send_message(chat_id, tr(user_id, "file_unsupported"))
             return
 
         if field == "id_front":
@@ -457,37 +461,37 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         return
 
     if text is None:
-        await send_message(chat_id, "Please send text input.")
+        await send_message(chat_id, tr(user_id, "text_required"))
         return
 
     value = text.strip()
 
     if field == "phone" and not phone_is_valid(value):
-        await send_message(chat_id, "Invalid phone format. Use +2519XXXXXXXX or 09XXXXXXXX.")
+        await send_message(chat_id, tr(user_id, "phone_invalid"))
         return
 
     if field in {"experience", "has_shop", "can_install"}:
         if value.lower() not in {"yes", "no", "y", "n", "አዎ", "አይደለም"}:
-            await send_message(chat_id, "Please reply Yes or No.")
+            await send_message(chat_id, tr(user_id, "yes_no_required"))
             return
         session["answers"][field] = parse_yes_no(value)
     elif field == "experience_years":
         if not value.isdigit():
-            await send_message(chat_id, "Please enter a valid number (0,1,2...).")
+            await send_message(chat_id, tr(user_id, "number_required"))
             return
         session["answers"][field] = int(value)
     elif field == "terms":
         if value.lower() == "cancel":
             sessions.pop(user_id, None)
-            await send_message(chat_id, "Application cancelled.")
+            await send_message(chat_id, tr(user_id, "application_cancelled"))
             return
         if value.lower() != "i agree":
-            await send_message(chat_id, "Please type I Agree to continue or Cancel to stop.")
+            await send_message(chat_id, tr(user_id, "terms_required"))
             return
         session["answers"]["terms_accepted"] = True
     else:
         if not value:
-            await send_message(chat_id, "This field is required.")
+            await send_message(chat_id, tr(user_id, "field_required"))
             return
         session["answers"][field] = value
 
@@ -612,7 +616,7 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str, fo
             "language": draft.get("language") or lang,
             "resume_pending": False,
         }
-        await send_message(chat_id, "Resuming your saved application.")
+        await send_message(chat_id, tr(user_id, "registration_resumed"))
         await ask_next(chat_id, user_id)
         return
 
@@ -628,7 +632,7 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str, fo
         step_index=0,
         answers=sessions[user_id]["answers"],
     )
-    await send_message(chat_id, "Great! Let's begin your registration.")
+    await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
 
@@ -646,7 +650,7 @@ async def _remind_incomplete_applications() -> dict:
         sessions[user_id]["language"] = draft.get("language") or "en"
         await send_message(
             user_id,
-            f"Reminder: your application is incomplete.\n{tr(user_id, 'timeline')}\nSend /register to continue.",
+            f"{tr(user_id, 'resume_prompt')}\n{tr(user_id, 'timeline')}\nSend /register to continue.",
         )
         mark_draft_reminder_sent(str(user_id))
         sent += 1
@@ -692,9 +696,9 @@ async def _telegram_webhook(update: dict) -> dict:
 
         if text in {"Email Support", "WhatsApp Support", "Call Support"}:
             channel_map = {
-                "Email Support": "Email: agentapply@interethiopia.com",
-                "WhatsApp Support": "WhatsApp: 0911238865 or 0978111223",
-                "Call Support": "Phone: 0911238865 or 0978111223",
+                "Email Support": tr(user_id, "support_email"),
+                "WhatsApp Support": tr(user_id, "support_whatsapp"),
+                "Call Support": tr(user_id, "support_call"),
             }
             await send_message(chat_id, f"Support channel:\n{channel_map[text]}")
             return {"ok": True}
@@ -743,9 +747,9 @@ async def _telegram_webhook(update: dict) -> dict:
                 status = get_latest_status_by_telegram_user(str(user_id))
 
             if status:
-                await send_message(chat_id, f"Your application status: {status}\nOur team will contact you soon.")
+                await send_message(chat_id, trf(user_id, "status_found", status=status))
             else:
-                await send_message(chat_id, "No application found yet. Use /register to submit your application.")
+                await send_message(chat_id, tr(user_id, "status_not_found"))
             return {"ok": True}
 
         if text in {"/territory", "Check Territory Availability"}:
@@ -761,9 +765,9 @@ async def _telegram_webhook(update: dict) -> dict:
             else:
                 available = territory_is_available(territory)
             if available:
-                await send_message(chat_id, "This territory is available.")
+                await send_message(chat_id, tr(user_id, "territory_available"))
             else:
-                await send_message(chat_id, "Sorry, this area is already reserved. Please select another nearby area.")
+                await send_message(chat_id, tr(user_id, "territory_unavailable"))
             return {"ok": True}
 
         if text in {"/admin", "Admin Management", "/adminmenu"}:
@@ -834,7 +838,7 @@ async def _telegram_webhook(update: dict) -> dict:
                 return {"ok": True}
             await send_message(
                 chat_id,
-                "Choose your application type: Sales Agent / Installer Agent / Sales + Installer Agent",
+                tr(user_id, "register_choose_type"),
                 keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
             )
             return {"ok": True}
@@ -862,7 +866,7 @@ async def _telegram_webhook(update: dict) -> dict:
             await process_registration_input(chat_id, user_id, text, message)
             return {"ok": True}
 
-        await send_message(chat_id, "Use /start to begin.")
+        await send_message(chat_id, tr(user_id, "start_prompt"))
     except Exception:
         logger.exception("Failed to handle telegram webhook update.")
         return {"ok": True}
