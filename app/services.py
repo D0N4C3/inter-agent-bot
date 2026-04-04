@@ -19,6 +19,12 @@ VALID_STATUSES = {
     "More Info Required",
 }
 
+VALID_AGENT_TAGS = {
+    "Sales Agent",
+    "Installer Agent",
+    "Hybrid",
+}
+
 
 def get_supabase() -> Client:
     client = create_client(
@@ -55,6 +61,15 @@ def save_application(record: dict) -> dict:
     client = get_supabase()
     result = client.table("agent_applications").insert(record).execute()
     return result.data[0]
+
+
+def default_agent_tag(applicant_type: str) -> str:
+    mapping = {
+        "sales_only": "Sales Agent",
+        "installer_only": "Installer Agent",
+        "sales_installer": "Hybrid",
+    }
+    return mapping.get(applicant_type, "Hybrid")
 
 
 def save_application_draft(
@@ -276,7 +291,15 @@ def lock_territory_for_application(application_id: str, region: str, zone: str, 
         client.table("territories").insert(territory_payload).execute()
 
 
-def update_application_status(application_id: str, status: str, admin_notes: str | None = None, territory_village: str | None = None) -> dict:
+def update_application_status(
+    application_id: str,
+    status: str,
+    admin_notes: str | None = None,
+    territory_village: str | None = None,
+    agent_tag: str | None = None,
+    performance_potential: str | None = None,
+    internal_remarks: str | None = None,
+) -> dict:
     if status not in VALID_STATUSES:
         raise ValueError("Invalid status")
 
@@ -287,6 +310,14 @@ def update_application_status(application_id: str, status: str, admin_notes: str
     updates: dict = {"status": status}
     if admin_notes is not None:
         updates["admin_notes"] = admin_notes
+    if agent_tag is not None:
+        if agent_tag not in VALID_AGENT_TAGS:
+            raise ValueError("Invalid agent tag")
+        updates["agent_tag"] = agent_tag
+    if performance_potential is not None:
+        updates["performance_potential"] = performance_potential
+    if internal_remarks is not None:
+        updates["internal_remarks"] = internal_remarks
 
     if status == "Approved":
         village = territory_village or application["preferred_territory"]

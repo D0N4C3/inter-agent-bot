@@ -1,4 +1,4 @@
-# Inter Ethiopia Agent Registration Bot (Phase 3)
+# Inter Ethiopia Agent Registration Bot (Phase 4)
 
 Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 
@@ -7,6 +7,10 @@ Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 - Qualification scoring with stronger candidate auto-flagging.
 - Admin dashboard for operations and approvals.
 - Territory locking on approval.
+- Post-approval onboarding message (welcome + training + next steps).
+- Agent lifecycle fields: agent tag, performance potential, internal remarks.
+- Training delivery links configurable via environment.
+- CSV/Excel exports from admin dashboard.
 - SMTP email + Telegram admin alerts for new applications.
 - English + Amharic language selection for user-facing flow.
 - Incomplete application draft recovery + reminder job endpoint.
@@ -25,6 +29,9 @@ Required env values (in addition to Phase 1):
 
 - `ADMIN_TELEGRAM_CHAT_ID` (optional): chat id to receive new application alerts.
 - `ADMIN_DASHBOARD_TOKEN` (optional): if set, required to access `/admin`.
+- `TRAINING_PDF_URL` (optional): onboarding PDF guide link.
+- `TRAINING_VIDEO_URL` (optional): onboarding video link.
+- `SALES_PLAYBOOK_URL` (optional): sales playbook link.
 
 ## 2) Run API
 
@@ -70,6 +77,8 @@ Features:
 - Approve / Reject / Under Review / More Info Required
 - Assign territory while approving
 - Add internal notes
+- Track agent tagging and performance potential
+- Export dashboard data as CSV/Excel
 
 ## 5) Supabase SQL
 

@@ -27,10 +27,20 @@ create table if not exists inter_agent_apply.agent_applications (
   profile_photo_url text,
   qualification_score integer not null,
   qualification_flag text not null,
+  agent_tag text not null default 'Hybrid' check (agent_tag in ('Sales Agent', 'Installer Agent', 'Hybrid')),
+  performance_potential text not null default 'Medium' check (performance_potential in ('High', 'Medium', 'Low')),
   status text not null default 'Submitted' check (status in ('Submitted', 'Under Review', 'Approved', 'Rejected', 'More Info Required')),
   admin_notes text,
+  internal_remarks text,
   submitted_at timestamptz not null default now()
 );
+
+alter table inter_agent_apply.agent_applications
+  add column if not exists agent_tag text not null default 'Hybrid';
+alter table inter_agent_apply.agent_applications
+  add column if not exists performance_potential text not null default 'Medium';
+alter table inter_agent_apply.agent_applications
+  add column if not exists internal_remarks text;
 
 create index if not exists idx_agent_applications_telegram_user
   on inter_agent_apply.agent_applications (telegram_user_id);

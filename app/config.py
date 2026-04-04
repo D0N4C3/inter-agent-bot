@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     )
     expected_review_timeline: str = "Our team typically responds within 3-5 business days."
     max_upload_size_mb: int = 8
+    training_pdf_url: str = "https://example.com/training/solar-installation-guide.pdf"
+    training_video_url: str = "https://example.com/training/solar-installation-video"
+    sales_playbook_url: str = "https://example.com/training/sales-playbook.pdf"
 
     @field_validator(
         "telegram_bot_token",
