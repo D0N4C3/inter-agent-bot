@@ -1,64 +1,249 @@
-<html>
-  <head>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}" />
-  </head>
-  <body>
-    <div class="card">
-      <h2>✨ Agent Applications Dashboard</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Operations — Inter Ethiopia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}" />
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="app-header">
+  <div class="header-brand">
+    <div class="brand-icon">⚡</div>
+    <div>
+      <div class="brand-title">Inter Ethiopia</div>
+      <div class="brand-sub">Agent Operations Dashboard</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="/admin/export.csv?token={{ token }}" class="btn btn-ghost">↓ CSV</a>
+    <a href="/admin/export.xlsx?token={{ token }}" class="btn btn-ghost">↓ Excel</a>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="app-main">
+
+  <!-- Filter -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Filter Applications</span>
+    </div>
+    <div class="filter-body">
       <form method="get" action="/admin">
         <input type="hidden" name="token" value="{{ token }}" />
-        <input name="region" value="{{ region }}" placeholder="Region" />
-        <input name="applicant_type" value="{{ applicant_type }}" placeholder="Type" />
-        <input name="status" value="{{ status }}" placeholder="Status" />
-        <button type="submit">Filter</button>
+        <div class="filter-fields">
+          <div class="field-wrap">
+            <label>Region</label>
+            <input name="region" value="{{ region }}" placeholder="e.g. Addis Ababa" />
+          </div>
+          <div class="field-wrap">
+            <label>Applicant Type</label>
+            <input name="applicant_type" value="{{ applicant_type }}" placeholder="sales_only / installer_only…" />
+          </div>
+          <div class="field-wrap">
+            <label>Status</label>
+            <input name="status" value="{{ status }}" placeholder="Submitted / Approved…" />
+          </div>
+          <div class="field-wrap">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn btn-primary">Apply Filter</button>
+          </div>
+        </div>
       </form>
-      <p>
-        <a href="/admin/export.csv?token={{ token }}">Export CSV</a> |
-        <a href="/admin/export.xlsx?token={{ token }}">Export Excel</a>
-      </p>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  {% set ns = namespace(sub=0, rev=0, app=0, rej=0) %}
+  {% for row in apps %}
+    {% if   row.app.status == 'Submitted'         %}{% set ns.sub = ns.sub + 1 %}
+    {% elif row.app.status == 'Under Review'       %}{% set ns.rev = ns.rev + 1 %}
+    {% elif row.app.status == 'Approved'           %}{% set ns.app = ns.app + 1 %}
+    {% elif row.app.status == 'Rejected'           %}{% set ns.rej = ns.rej + 1 %}
+    {% endif %}
+  {% endfor %}
+  <div class="stats-row">
+    <div class="stat-card s-total">
+      <div class="stat-label">Total</div>
+      <div class="stat-value">{{ apps|length }}</div>
+    </div>
+    <div class="stat-card s-submitted">
+      <div class="stat-label">Submitted</div>
+      <div class="stat-value">{{ ns.sub }}</div>
+    </div>
+    <div class="stat-card s-review">
+      <div class="stat-label">Under Review</div>
+      <div class="stat-value">{{ ns.rev }}</div>
+    </div>
+    <div class="stat-card s-approved">
+      <div class="stat-label">Approved</div>
+      <div class="stat-value">{{ ns.app }}</div>
+    </div>
+    <div class="stat-card s-rejected">
+      <div class="stat-label">Rejected</div>
+      <div class="stat-value">{{ ns.rej }}</div>
+    </div>
+  </div>
+
+  <!-- Applications Table -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Applications</span>
+      <span class="card-meta">{{ apps|length }} result{% if apps|length != 1 %}s{% endif %}</span>
+    </div>
+
+    {% if apps %}
+    <div class="table-scroll">
       <table>
-        <tr>
-          <th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Tag</th><th>Status</th><th>Potential</th><th>Remarks</th><th>Uploads</th><th>Actions</th>
-        </tr>
-        {% for row in apps %}
-        <tr class="app-row">
-          <td>{{ row.app.application_id }}</td>
-          <td>{{ row.app.full_name }}</td>
-          <td>{{ row.app.region }}</td>
-          <td>{{ row.app.applicant_type }}</td>
-          <td>{{ row.app.agent_tag or '' }}</td>
-          <td><span class="status-badge">{{ row.app.status }}</span></td>
-          <td>{{ row.app.performance_potential or '' }}</td>
-          <td>{{ row.app.internal_remarks or '' }}</td>
-          <td>
-            <div class="uploads">
-              {% if row.uploads %}
-                {% for upload in row.uploads %}
-                  {% if upload.is_image %}
-                    <a class="thumb-link" href="{{ upload.url }}" target="_blank" rel="noopener"><img src="{{ upload.url }}" alt="{{ upload.label }}" class="thumb" /></a>
-                  {% else %}
-                    <a href="{{ upload.url }}" target="_blank" rel="noopener">{{ upload.label }}</a>
-                  {% endif %}
-                {% endfor %}
-              {% else %}
-                <span class="muted">No uploads</span>
-              {% endif %}
-            </div>
-          </td>
-          <td>
-            <form method="post" action="/admin/applications/{{ row.app.application_id }}/status?token={{ token }}">
-              <select name="status">{% for s in valid_statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
-              <select name="agent_tag">{% for tag in valid_agent_tags %}<option value="{{ tag }}" {% if row.app.agent_tag==tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}</select>
-              <select name="performance_potential">{% for p in valid_performance_levels %}<option value="{{ p }}" {% if row.app.performance_potential==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
-              <input name="territory_village" placeholder="territory" value="{{ row.app.preferred_territory }}" />
-              <input name="admin_notes" placeholder="internal notes" value="{{ row.app.admin_notes or '' }}" />
-              <input name="internal_remarks" placeholder="remarks" value="{{ row.app.internal_remarks or '' }}" />
-              <button type="submit">Update</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Applicant</th>
+            <th class="hide-sm">Region</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th class="hide-sm">Score</th>
+            <th class="hide-sm">Potential</th>
+            <th class="hide-sm">Uploads</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in apps %}
+          {% set a = row.app %}
+          {% set score = a.qualification_score or 0 %}
+          {% if score >= 75 %}{% set sc = 'score-hi' %}
+          {% elif score >= 50 %}{% set sc = 'score-mid' %}
+          {% else %}{% set sc = 'score-lo' %}{% endif %}
+
+          <tr class="app-row">
+            <td><span class="cell-id">{{ loop.index }}</span></td>
+            <td>
+              <div class="cell-name">{{ a.full_name }}</div>
+              <div class="cell-sub">{{ a.phone }}</div>
+            </td>
+            <td class="hide-sm">{{ a.region }}</td>
+            <td><span class="type-pill">{{ a.applicant_type | replace('_', ' ') | title }}</span></td>
+            <td><span class="status-badge" data-status="{{ a.status }}">{{ a.status }}</span></td>
+            <td class="hide-sm">
+              <span class="score-badge {{ sc }}" title="{{ a.qualification_flag or '' }}">{{ score }}</span>
+            </td>
+            <td class="hide-sm">
+              <span class="potential-badge" data-potential="{{ a.performance_potential or 'Medium' }}">{{ a.performance_potential or '—' }}</span>
+            </td>
+            <td class="hide-sm">
+              <div class="uploads">
+                {% if row.uploads %}
+                  {% for upload in row.uploads %}
+                    {% if upload.is_image %}
+                      <a class="thumb-link" href="{{ upload.url }}" target="_blank" rel="noopener">
+                        <img src="{{ upload.url }}" alt="{{ upload.label }}" class="thumb" loading="lazy" />
+                      </a>
+                    {% else %}
+                      <a class="doc-link" href="{{ upload.url }}" target="_blank" rel="noopener">{{ upload.label }}</a>
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span class="no-uploads">None</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-edit" id="editbtn-{{ a.application_id }}"
+                      onclick="toggleEdit('{{ a.application_id }}')">Edit</button>
+            </td>
+          </tr>
+
+          <!-- Inline edit panel -->
+          <tr class="edit-panel" id="edit-{{ a.application_id }}" style="display:none">
+            <td colspan="9">
+              <div class="edit-form-inner">
+                <div class="edit-form-header">
+                  <span class="edit-form-title">Update Application</span>
+                  <span class="edit-app-ref">{{ a.application_id[:12] }}…</span>
+                </div>
+                <form method="post" action="/admin/applications/{{ a.application_id }}/status?token={{ token }}">
+                  <div class="edit-grid">
+                    <div class="edit-field">
+                      <label>Status</label>
+                      <select name="status">
+                        {% for s in valid_statuses %}
+                          <option value="{{ s }}" {% if a.status == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="edit-field">
+                      <label>Agent Tag</label>
+                      <select name="agent_tag">
+                        {% for tag in valid_agent_tags %}
+                          <option value="{{ tag }}" {% if a.agent_tag == tag %}selected{% endif %}>{{ tag }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="edit-field">
+                      <label>Performance Potential</label>
+                      <select name="performance_potential">
+                        {% for p in valid_performance_levels %}
+                          <option value="{{ p }}" {% if a.performance_potential == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="edit-field">
+                      <label>Territory Village</label>
+                      <input name="territory_village" value="{{ a.preferred_territory or '' }}" placeholder="Village name" />
+                    </div>
+                    <div class="edit-field">
+                      <label>Admin Notes</label>
+                      <input name="admin_notes" value="{{ a.admin_notes or '' }}" placeholder="Internal notes" />
+                    </div>
+                    <div class="edit-field">
+                      <label>Internal Remarks</label>
+                      <input name="internal_remarks" value="{{ a.internal_remarks or '' }}" placeholder="Remarks" />
+                    </div>
+                  </div>
+                  <div class="edit-actions">
+                    <button type="button" class="btn btn-cancel-edit" onclick="toggleEdit('{{ a.application_id }}')">Cancel</button>
+                    <button type="submit" class="btn btn-update">Save Changes</button>
+                  </div>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
       </table>
     </div>
-  </body>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">No applications found</div>
+      <div class="empty-sub">Try adjusting your filters above.</div>
+    </div>
+    {% endif %}
+  </div>
+
+</main>
+
+<script>
+  function toggleEdit(id) {
+    const panel  = document.getElementById('edit-' + id);
+    const btn    = document.getElementById('editbtn-' + id);
+    const isOpen = panel.style.display !== 'none';
+    // Close all open panels first
+    document.querySelectorAll('.edit-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.btn-edit').forEach(b => b.classList.remove('open'));
+    if (!isOpen) {
+      panel.style.display = 'table-row';
+      btn.classList.add('open');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+</script>
+</body>
 </html>

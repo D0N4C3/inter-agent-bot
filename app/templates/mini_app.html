@@ -1,333 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{{ mini_app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/mini_app.css') }}" />
+</head>
+<body>
 
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>{{ mini_app_name }}</title>
-      <link rel="stylesheet" href="{{ url_for('static', filename='css/mini_app.css') }}" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    </head>
-    <body>
-      <div class="shell">
-        <div class="hero">
-          <div class="hero-card">
-            <h2 class="hero-title">⚡ {{ mini_app_name }}</h2>
-            <p class="muted">Manage your application, territory insights, training, and rankings with a cleaner user experience.</p>
-            <div class="kpis">
-              <div class="kpi"><b id="kpiTerritories">0</b><span class="muted">Mapped territories</span></div>
-              <div class="kpi"><b id="kpiOpen">0</b><span class="muted">Open territories</span></div>
-              <div class="kpi"><b id="kpiLocked">0</b><span class="muted">Locked territories</span></div>
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="app-shell">
+
+  <!-- ── SIDEBAR (desktop) ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-icon">⚡</div>
+        <div class="sidebar-name">{{ mini_app_name }}</div>
+      </div>
+      <div class="user-chip">
+        <div class="user-avatar">👤</div>
+        <div class="user-name" id="welcomeUser">Loading…</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="tab-btn active" data-tab="registration">
+        <span class="tab-icon">📋</span>Registration
+      </button>
+      <button class="tab-btn" data-tab="territories">
+        <span class="tab-icon">🗺</span>Territory Map
+      </button>
+      <button class="tab-btn" data-tab="agent">
+        <span class="tab-icon">👤</span>My Dashboard
+      </button>
+      <button class="tab-btn" data-tab="training">
+        <span class="tab-icon">🎓</span>Training
+      </button>
+      <button class="tab-btn" data-tab="rankings">
+        <span class="tab-icon">🏆</span>Rankings
+      </button>
+      <button class="tab-btn admin-only hidden-admin" data-tab="performance">
+        <span class="tab-icon">📈</span>Performance
+      </button>
+    </nav>
+
+    <div class="sidebar-kpis">
+      <div class="kpi-row">
+        <span class="kpi-label">Total territories</span>
+        <span class="kpi-val" id="kpiTerritories">—</span>
+      </div>
+      <div class="kpi-row">
+        <span class="kpi-label">Open</span>
+        <span class="kpi-val open-color" id="kpiOpen">—</span>
+      </div>
+      <div class="kpi-row">
+        <span class="kpi-label">Locked</span>
+        <span class="kpi-val locked-color" id="kpiLocked">—</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── CONTENT AREA ── -->
+  <main class="content-area">
+
+    <!-- Registration Tab -->
+    <section id="tab-registration" class="tab active">
+      <div class="section-header">
+        <div class="section-title">Apply as Agent</div>
+        <div class="section-sub">Complete all sections below to submit your application.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">👤</span>Personal Information</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Full name</label><input id="full_name" placeholder="Your full name" /></div>
+            <div class="field"><label>Phone number</label><input id="phone" placeholder="+2519XXXXXXXX" /></div>
+            <div class="field">
+              <label>Application type</label>
+              <select id="applicant_type">
+                <option value="sales_only">Sales Agent</option>
+                <option value="installer_only">Installer Agent</option>
+                <option value="sales_installer" selected>Both (Sales + Installer)</option>
+              </select>
             </div>
-            <p class="muted hero-muted" id="welcomeUser"></p>
           </div>
         </div>
-        <div class="grid">
-          <aside class="nav">
-            <button class="tab-btn active" data-tab="registration">🧾 Registration</button>
-            <button class="tab-btn" data-tab="territories">🗺 Territory Intelligence</button>
-            <button class="tab-btn" data-tab="agent">👤 Agent Dashboard</button>
-            <button class="tab-btn" data-tab="training">🎓 Training Progress</button>
-            <button class="tab-btn admin-only hidden-admin" data-tab="performance">📈 Performance Input</button>
-            <button class="tab-btn" data-tab="rankings">🏆 Rankings</button>
-          </aside>
-          <main class="panel">
-            <section id="tab-registration" class="tab active">
-              <h3 class="section-title">Agent / Installer Application</h3>
-              <p class="muted">All candidate data is collected from this form. Fields are mapped to your existing bot schema and API.</p>
-              <div class="form-grid">
-                                <div><label>Full name</label><input id="full_name" /></div>
-                <div><label>Phone</label><input id="phone" placeholder="+2519..." /></div>
-                <div><label>Applicant type</label><select id="applicant_type"><option value="sales_only">Sales Agent</option><option value="installer_only">Installer</option><option value="sales_installer" selected>Both</option></select></div>
-                <div><label>Region</label><input id="region" /></div>
-                <div><label>Zone</label><input id="zone" /></div>
-                <div><label>Woreda</label><input id="woreda" /></div>
-                <div><label>Kebele</label><input id="kebele" /></div>
-                <div><label>Village</label><input id="village" /></div>
-                <div><label>Preferred territory</label><input id="preferred_territory" /></div>
-                <div><label>Experience</label><select id="experience"><option value="true">Yes</option><option value="false">No</option></select></div>
-                <div><label>Experience years</label><input id="experience_years" type="number" min="0" value="0" /></div>
-                <div><label>Work type</label><input id="work_type" placeholder="Sales, install, technician..." /></div>
-                <div><label>Has shop/business</label><select id="has_shop"><option value="true">Yes</option><option value="false">No</option></select></div>
-                <div><label>Can install solar</label><select id="can_install"><option value="true">Yes</option><option value="false">No</option></select></div>
-                <div><label>ID front URL</label><input id="id_file_front_url" placeholder="https://..." /></div>
-                <div><label>ID back URL</label><input id="id_file_back_url" placeholder="https://..." /></div>
-                <div><label>Profile photo URL (optional)</label><input id="profile_photo_url" placeholder="https://..." /></div>
-              </div>
-              <button onclick="submitRegistration()">Submit Registration</button>
-            </section>
+      </div>
 
-            <section id="tab-territories" class="tab">
-              <h3 class="section-title">Territory Intelligence</h3>
-              <p class="muted">Visualize open vs locked territories, pick map location, and get nearest suggestions from GPS.</p>
-              <div class="form-grid">
-                <div><label>Region filter</label><input id="filter_region" /></div>
-                <div><label>Zone filter</label><input id="filter_zone" /></div>
-                <div><label>Woreda filter</label><input id="filter_woreda" /></div>
-              </div>
-              <button class="secondary" onclick="loadTerritories()">Refresh map data</button>
-              <button onclick="suggestNearest()">Suggest nearest territories by GPS</button>
-              <div id="map"></div>
-            </section>
-
-            <section id="tab-agent" class="tab">
-              <h3 class="section-title">Agent Dashboard Lookup + Profile Update</h3>
-              <button onclick="loadDashboard()">Load Dashboard</button>
-              <div class="form-grid">
-                <div><label>Full name</label><input id="upd_full_name" /></div>
-                <div><label>Phone</label><input id="upd_phone" /></div>
-                <div><label>Region</label><input id="upd_region" /></div>
-                <div><label>Preferred territory</label><input id="upd_territory" /></div>
-              </div>
-              <button class="secondary" onclick="updateProfile()">Update Profile</button>
-            </section>
-
-            <section id="tab-training" class="tab">
-              <h3 class="section-title">Training Completion</h3>
-              <div class="form-grid">
-                <div><label>Application ID</label><input id="training_application_id" /></div>
-                <div><label>Module key</label><input id="training_module_key" placeholder="safety_intro" /></div>
-                <div><label>Completed</label><select id="training_completed"><option value="true">Yes</option><option value="false">No</option></select></div>
-              </div>
-              <button onclick="markTraining()">Save Training Progress</button>
-            </section>
-
-            <section id="tab-performance" class="tab">
-              <h3 class="section-title">Performance Event Entry (Admin)</h3>
-              <div class="form-grid">
-                <div><label>Application ID</label><input id="perf_application_id" /></div>
-                <div><label>Event type</label><select id="perf_event_type"><option value="sale_closed">Sale Closed</option><option value="installer_job_completed">Installer Job Completed</option><option value="training_completed">Training Completed</option></select></div>
-                <div><label>Event value</label><input id="perf_event_value" type="number" value="1" step="0.01" /></div>
-                <div><label>Occurred at (ISO optional)</label><input id="perf_occurred_at" placeholder="2026-04-04T12:00:00Z" /></div>
-                <div class="full-span"><label>Metadata JSON</label><textarea id="perf_metadata">{}</textarea></div>
-              </div>
-              <button onclick="submitPerformance()">Submit Event</button>
-            </section>
-
-            <section id="tab-rankings" class="tab">
-              <h3 class="section-title">Top Performers</h3>
-              <button onclick="loadRankings()">Refresh Rankings</button>
-              <div id="rankingsContainer"></div>
-            </section>
-
-            <h4 class="status-title">Status</h4>
-            <pre id="result">Loading mini app context...</pre>
-          </main>
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">📍</span>Location Details</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Region</label><input id="region" placeholder="e.g. Addis Ababa" /></div>
+            <div class="field"><label>Zone</label><input id="zone" placeholder="Zone name" /></div>
+            <div class="field"><label>Woreda</label><input id="woreda" placeholder="Woreda name" /></div>
+            <div class="field"><label>Kebele</label><input id="kebele" placeholder="Kebele name" /></div>
+            <div class="field"><label>Town / Village</label><input id="village" placeholder="Village name" /></div>
+            <div class="field"><label>Preferred territory</label><input id="preferred_territory" placeholder="Same or nearby area" /></div>
+          </div>
         </div>
       </div>
-      <script src="https://telegram.org/js/telegram-web-app.js"></script>
-      <script>
-        document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
-      </script>
-      <script>
-        const tg = window.Telegram?.WebApp;
-        const tgInitData = tg?.initData || '';
-        const tgUser = tg?.initDataUnsafe?.user || null;
-        let miniSession = null;
-        if (tg) {
-          tg.ready();
-          tg.expand();
-        }
-        async function apiFetch(url, options = {}) {
-          const headers = Object.assign({}, options.headers || {});
-          if (tgInitData) headers['X-Telegram-Init-Data'] = tgInitData;
-          return fetch(url, Object.assign({}, options, { headers }));
-        }
-        function asBool(id) {
-          return document.getElementById(id).value === 'true';
-        }
-        function setResult(obj) {
-          if (typeof obj === 'string') {
-            document.getElementById('result').innerText = obj;
-            return;
-          }
-          document.getElementById('result').innerText = obj?.error || obj?.message || JSON.stringify(obj, null, 2);
-        }
-        document.querySelectorAll('.tab-btn').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach((s) => s.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-          });
-        });
-        const map = L.map('map').setView([8.9806, 38.7578], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        let territoryMarkers = [];
-        let pickedLatLng = null;
-        map.on('click', (e) => {
-          pickedLatLng = e.latlng;
-          setResult({picked_location: [e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6)]});
-        });
-        async function loadTerritories() {
-          const qp = new URLSearchParams();
-          ['region','zone','woreda'].forEach((k) => {
-            const v = document.getElementById(`filter_${k}`)?.value?.trim();
-            if (v) qp.set(k, v);
-          });
-          const res = await apiFetch(`/api/territories/map?${qp.toString()}`);
-          const data = await res.json();
-          territoryMarkers.forEach(m => m.remove());
-          territoryMarkers = [];
-          const items = data.items || [];
-          document.getElementById('kpiTerritories').innerText = items.length;
-          document.getElementById('kpiOpen').innerText = items.filter((t) => !t.is_locked).length;
-          document.getElementById('kpiLocked').innerText = items.filter((t) => t.is_locked).length;
-          (data.items || []).forEach((t) => {
-            if (t.latitude == null || t.longitude == null) return;
-            const color = t.is_locked ? '#e74c3c' : '#2ecc71';
-            const marker = L.circleMarker([t.latitude, t.longitude], {radius: 7, color}).addTo(map)
-              .bindPopup(`${t.village} (${t.availability_status || (t.is_locked ? 'locked' : 'open')})`);
-            territoryMarkers.push(marker);
-          });
-          setResult({message: `Loaded ${items.length} territories.`});
-        }
-        async function suggestNearest() {
-          if (!navigator.geolocation) {
-            setResult({ok: false, error: 'Geolocation not available on this device/browser.'});
-            return;
-          }
-          navigator.geolocation.getCurrentPosition(async (pos) => {
-            const r = await apiFetch('/api/territories/nearest', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({latitude: pos.coords.latitude, longitude: pos.coords.longitude})
-            });
-            const data = await r.json();
-            setResult({message: `Found ${(data.items || []).length} nearby territories.`});
-          });
-        }
-        async function submitRegistration() {
-          const payload = {
-            full_name: document.getElementById('full_name').value,
-            phone: document.getElementById('phone').value,
-            region: document.getElementById('region').value,
-            zone: document.getElementById('zone').value,
-            woreda: document.getElementById('woreda').value,
-            kebele: document.getElementById('kebele').value,
-            village: document.getElementById('village').value,
-            preferred_territory: document.getElementById('preferred_territory').value,
-            applicant_type: document.getElementById('applicant_type').value,
-            experience: asBool('experience'),
-            experience_years: Number(document.getElementById('experience_years').value || 0),
-            work_type: document.getElementById('work_type').value,
-            has_shop: asBool('has_shop'),
-            can_install: asBool('can_install'),
-            id_file_front_url: document.getElementById('id_file_front_url').value,
-            id_file_back_url: document.getElementById('id_file_back_url').value,
-            profile_photo_url: document.getElementById('profile_photo_url').value || null,
-            picked_latitude: pickedLatLng ? pickedLatLng.lat : null,
-            picked_longitude: pickedLatLng ? pickedLatLng.lng : null
-          };
-          const res = await apiFetch('/api/mini-app/register', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          setResult(data.ok ? 'Registration submitted successfully.' : data);
-        }
-        async function loadDashboard() {
-          const uid = miniSession?.telegram_user_id;
-          if (!uid) return setResult({ok:false,error:'Unable to identify Telegram user'});
-          const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}`);
-          const data = await res.json();
-          if (data.dashboard) {
-            document.getElementById('upd_full_name').value = data.dashboard.full_name || '';
-            document.getElementById('upd_phone').value = data.dashboard.phone || '';
-            document.getElementById('upd_region').value = data.dashboard.region || '';
-            document.getElementById('upd_territory').value = data.dashboard.preferred_territory || '';
-            if (data.dashboard.application_id) {
-              document.getElementById('training_application_id').value = data.dashboard.application_id;
-              document.getElementById('perf_application_id').value = data.dashboard.application_id;
-            }
-          }
-          setResult(data.ok ? 'Dashboard loaded.' : data);
-        }
-        async function updateProfile() {
-          const uid = miniSession?.telegram_user_id;
-          if (!uid) return setResult({ok:false,error:'Unable to identify Telegram user'});
-          const payload = {
-            full_name: document.getElementById('upd_full_name').value,
-            phone: document.getElementById('upd_phone').value,
-            region: document.getElementById('upd_region').value,
-            preferred_territory: document.getElementById('upd_territory').value
-          };
-          const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}/profile`, {
-            method: 'PATCH',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          setResult(data.ok ? 'Profile updated.' : data);
-        }
-        async function markTraining() {
-          const appId = document.getElementById('training_application_id').value.trim();
-          const moduleKey = document.getElementById('training_module_key').value.trim();
-          if (!appId || !moduleKey) return setResult({ok:false,error:'application_id and module_key are required'});
-          const res = await apiFetch(`/api/agent/training/${encodeURIComponent(appId)}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({module_key: moduleKey, completed: asBool('training_completed')})
-          });
-          const data = await res.json();
-          setResult(data.ok ? 'Training progress saved.' : data);
-        }
-        async function submitPerformance() {
-          const rawMetadata = document.getElementById('perf_metadata').value || '{}';
-          let metadata = {};
-          try {
-            metadata = JSON.parse(rawMetadata);
-          } catch (err) {
-            return setResult({ok:false,error:'Metadata must be valid JSON'});
-          }
-          const payload = {
-            application_id: document.getElementById('perf_application_id').value,
-            event_type: document.getElementById('perf_event_type').value,
-            event_value: Number(document.getElementById('perf_event_value').value || 0),
-            occurred_at: document.getElementById('perf_occurred_at').value || null,
-            metadata
-          };
-          const res = await apiFetch('/api/performance/events', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-          });
-          setResult(await res.json());
-        }
-        function drawRankTable(title, items, valueKey) {
-          if (!items?.length) return `<h4>${title}</h4><p class="muted">No data yet.</p>`;
-          const rows = items.map((i, idx) =>
-            `<tr><td>#${idx + 1}</td><td>${i.full_name || 'N/A'}</td><td>${i.phone || 'N/A'}</td><td><span class="pill ok">${i[valueKey] ?? 0}</span></td></tr>`
-          ).join('');
-          return `<h4>${title}</h4><table><thead><tr><th>Rank</th><th>Name</th><th>Phone</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>`;
-        }
-        async function loadRankings() {
-          const res = await apiFetch('/api/rankings');
-          const data = await res.json();
-          document.getElementById('rankingsContainer').innerHTML =
-            drawRankTable('Top Sales Agents', data.rankings?.top_sales_agents || [], 'total_sales') +
-            drawRankTable('Top Installer Agents', data.rankings?.top_installer_agents || [], 'completed_jobs');
-          setResult('Rankings refreshed.');
-        }
-        async function initMiniApp() {
-          const res = await apiFetch('/api/mini-app/session');
-          const data = await res.json();
-          if (!data.ok) {
-            setResult(data);
-            return;
-          }
-          miniSession = data.session;
-          const label = miniSession.user?.first_name || tgUser?.first_name || 'User';
-          document.getElementById('welcomeUser').innerText = `Hello, ${label}`;
-          if (miniSession.is_admin) {
-            document.querySelectorAll('.admin-only').forEach((el) => el.style.display = '');
-          }
-          await loadDashboard();
-          await loadTerritories();
-          await loadRankings();
-        }
-        initMiniApp();
-      </script>
-    </body>
-    </html>
-    
+
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">💼</span>Work Profile</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>Do you have experience?</label>
+              <select id="experience"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+            <div class="field"><label>Years of experience</label><input id="experience_years" type="number" min="0" value="0" /></div>
+            <div class="field"><label>Work type</label><input id="work_type" placeholder="Sales, installer, technician…" /></div>
+            <div class="field">
+              <label>Have a shop or business?</label>
+              <select id="has_shop"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+            <div class="field">
+              <label>Can install solar systems?</label>
+              <select id="can_install"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">📄</span>Document URLs</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>National ID — Front</label><input id="id_file_front_url" placeholder="https://…" /></div>
+            <div class="field"><label>National ID — Back</label><input id="id_file_back_url" placeholder="https://…" /></div>
+            <div class="field"><label>Profile photo (optional)</label><input id="profile_photo_url" placeholder="https://…" /></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="handleSubmitRegistration(this)">Submit Application</button>
+    </section>
+
+    <!-- Territories Tab -->
+    <section id="tab-territories" class="tab">
+      <div class="section-header">
+        <div class="section-title">Territory Map</div>
+        <div class="section-sub">View open and locked territories. Click the map to select a location.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">🔍</span>Filter Territories</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Region</label><input id="filter_region" placeholder="All regions" /></div>
+            <div class="field"><label>Zone</label><input id="filter_zone" placeholder="All zones" /></div>
+            <div class="field"><label>Woreda</label><input id="filter_woreda" placeholder="All woredas" /></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px;">
+            <button class="btn btn-primary" style="flex:1" onclick="handleLoadTerritories(this)">Refresh Map</button>
+            <button class="btn btn-secondary" style="flex:1" onclick="suggestNearest()">📡 Nearest by GPS</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="map"></div>
+
+      <pre id="result" class="status-area"></pre>
+    </section>
+
+    <!-- Agent Dashboard Tab -->
+    <section id="tab-agent" class="tab">
+      <div class="section-header">
+        <div class="section-title">My Dashboard</div>
+        <div class="section-sub">View your application status and update your profile.</div>
+      </div>
+
+      <div id="agentProfileCard" style="display:none">
+        <div class="profile-card">
+          <div class="profile-avatar">👤</div>
+          <div class="profile-info">
+            <div class="profile-name" id="profileCardName">—</div>
+            <div class="profile-meta" id="profileCardMeta">—</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary" onclick="handleLoadDashboard(this)" style="margin-bottom:16px">↻ Reload Dashboard</button>
+
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">✏️</span>Update Profile</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Full name</label><input id="upd_full_name" placeholder="Full name" /></div>
+            <div class="field"><label>Phone</label><input id="upd_phone" placeholder="+2519XXXXXXXX" /></div>
+            <div class="field"><label>Region</label><input id="upd_region" placeholder="Region" /></div>
+            <div class="field"><label>Preferred territory</label><input id="upd_territory" placeholder="Territory" /></div>
+          </div>
+          <button class="btn btn-primary" onclick="handleUpdateProfile(this)">Save Profile</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Training Tab -->
+    <section id="tab-training" class="tab">
+      <div class="section-header">
+        <div class="section-title">Training</div>
+        <div class="section-sub">Track your module completion progress.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">🎓</span>Mark Module Complete</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Application ID</label><input id="training_application_id" placeholder="Your application UUID" /></div>
+            <div class="field"><label>Module key</label><input id="training_module_key" placeholder="e.g. safety_intro" /></div>
+            <div class="field">
+              <label>Completed?</label>
+              <select id="training_completed"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="handleMarkTraining(this)">Save Progress</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Performance Tab (admin only) -->
+    <section id="tab-performance" class="tab">
+      <div class="section-header">
+        <div class="section-title">Performance Input</div>
+        <div class="section-sub">Admin-only: record agent performance events.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-head-icon">📈</span>Log Event</div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Application ID</label><input id="perf_application_id" placeholder="Agent application UUID" /></div>
+            <div class="field">
+              <label>Event type</label>
+              <select id="perf_event_type">
+                <option value="sale_closed">Sale Closed</option>
+                <option value="installer_job_completed">Installer Job Completed</option>
+                <option value="training_completed">Training Completed</option>
+              </select>
+            </div>
+            <div class="field"><label>Event value</label><input id="perf_event_value" type="number" value="1" step="0.01" /></div>
+            <div class="field"><label>Occurred at (ISO optional)</label><input id="perf_occurred_at" placeholder="2026-04-04T12:00:00Z" /></div>
+            <div class="field full-span"><label>Metadata (JSON)</label><textarea id="perf_metadata">{}</textarea></div>
+          </div>
+          <button class="btn btn-primary" onclick="handleSubmitPerformance(this)">Submit Event</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rankings Tab -->
+    <section id="tab-rankings" class="tab">
+      <div class="section-header">
+        <div class="section-title">Rankings</div>
+        <div class="section-sub">Top performing agents by sales and installations.</div>
+      </div>
+      <button class="btn btn-secondary" onclick="handleLoadRankings(this)" style="margin-bottom:16px">↻ Refresh Rankings</button>
+      <div id="rankingsContainer"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── BOTTOM NAV (mobile) ── -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bnav-btn active" data-tab="registration">
+    <span class="bnav-icon">📋</span>
+    <span class="bnav-label">Register</span>
+  </button>
+  <button class="bnav-btn" data-tab="territories">
+    <span class="bnav-icon">🗺</span>
+    <span class="bnav-label">Territory</span>
+  </button>
+  <button class="bnav-btn" data-tab="agent">
+    <span class="bnav-icon">👤</span>
+    <span class="bnav-label">Dashboard</span>
+  </button>
+  <button class="bnav-btn" data-tab="training">
+    <span class="bnav-icon">🎓</span>
+    <span class="bnav-label">Training</span>
+  </button>
+  <button class="bnav-btn" data-tab="rankings">
+    <span class="bnav-icon">🏆</span>
+    <span class="bnav-label">Rankings</span>
+  </button>
+  <button class="bnav-btn admin-only hidden-admin" data-tab="performance">
+    <span class="bnav-icon">📈</span>
+    <span class="bnav-label">Perf.</span>
+  </button>
+</nav>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  // Apply brand color from template variable
+  document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
+
+  const tg = window.Telegram?.WebApp;
+  const tgInitData = tg?.initData || '';
+  const tgUser = tg?.initDataUnsafe?.user || null;
+  let miniSession = null;
+
+  if (tg) { tg.ready(); tg.expand(); }
+
+  // ── Toast notifications ────────────────────────────
+  function showToast(msg, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icons = { success: '✓', error: '✕', info: 'ℹ' };
+    toast.innerHTML = `<span>${icons[type] || '•'}</span><span>${msg}</span>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 3500);
+  }
+
+  // ── Status area (preserved for compatibility) ──────
+  function setResult(obj) {
+    const el = document.getElementById('result');
+    let msg, isError = false;
+    if (typeof obj === 'string') {
+      msg = obj;
+    } else {
+      isError = (obj?.ok === false) || !!obj?.error;
+      msg = obj?.error || obj?.message || (isError ? 'An error occurred.' : JSON.stringify(obj));
+    }
+    if (el) {
+      el.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      el.classList.add('visible');
+    }
+    showToast(msg, isError ? 'error' : 'success');
+  }
+
+  // ── Button loading state ───────────────────────────
+  function setBtnLoading(btn, loading, label = 'Loading…') {
+    if (!btn) return;
+    if (loading) {
+      btn.dataset.orig = btn.textContent;
+      btn.textContent = label;
+      btn.classList.add('btn-loading');
+    } else {
+      btn.textContent = btn.dataset.orig || btn.textContent;
+      btn.classList.remove('btn-loading');
+    }
+  }
+
+  // ── API fetch helper ───────────────────────────────
+  async function apiFetch(url, options = {}) {
+    const headers = Object.assign({}, options.headers || {});
+    if (tgInitData) headers['X-Telegram-Init-Data'] = tgInitData;
+    return fetch(url, Object.assign({}, options, { headers }));
+  }
+
+  function asBool(id) {
+    return document.getElementById(id).value === 'true';
+  }
+
+  // ── Tab switching ──────────────────────────────────
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn, .bnav-btn').forEach(b => b.classList.remove('active'));
+    const target = document.getElementById('tab-' + tabName);
+    if (target) target.classList.add('active');
+    document.querySelectorAll(`[data-tab="${tabName}"]`).forEach(b => b.classList.add('active'));
+    // Invalidate map size if switching to territory tab
+    if (tabName === 'territories' && map) setTimeout(() => map.invalidateSize(), 100);
+  }
+
+  document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // ── Map setup ─────────────────────────────────────
+  const map = L.map('map').setView([8.9806, 38.7578], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  let territoryMarkers = [];
+  let pickedLatLng = null;
+
+  map.on('click', (e) => {
+    pickedLatLng = e.latlng;
+    setResult({ picked_location: [e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6)] });
+  });
+
+  // ── Territory loading ─────────────────────────────
+  async function loadTerritories() {
+    const qp = new URLSearchParams();
+    ['region','zone','woreda'].forEach(k => {
+      const v = document.getElementById(`filter_${k}`)?.value?.trim();
+      if (v) qp.set(k, v);
+    });
+    const res = await apiFetch(`/api/territories/map?${qp.toString()}`);
+    const data = await res.json();
+    territoryMarkers.forEach(m => m.remove());
+    territoryMarkers = [];
+    const items = data.items || [];
+    document.getElementById('kpiTerritories').textContent = items.length;
+    document.getElementById('kpiOpen').textContent   = items.filter(t => !t.is_locked).length;
+    document.getElementById('kpiLocked').textContent = items.filter(t =>  t.is_locked).length;
+    items.forEach(t => {
+      if (t.latitude == null || t.longitude == null) return;
+      const color = t.is_locked ? '#f87171' : '#06d6a0';
+      const marker = L.circleMarker([t.latitude, t.longitude], { radius: 7, color, fillColor: color, fillOpacity: 0.35 })
+        .addTo(map)
+        .bindPopup(`<strong>${t.village}</strong><br>${t.availability_status || (t.is_locked ? '🔒 Locked' : '✓ Open')}`);
+      territoryMarkers.push(marker);
+    });
+    return items.length;
+  }
+
+  async function handleLoadTerritories(btn) {
+    setBtnLoading(btn, true, 'Refreshing…');
+    try {
+      const n = await loadTerritories();
+      setResult(`Loaded ${n} territories.`);
+    } catch(e) { setResult({ok:false, error:'Failed to load territories.'}); }
+    finally { setBtnLoading(btn, false); }
+  }
+
+  async function suggestNearest() {
+    if (!navigator.geolocation) { setResult({ok:false, error:'Geolocation not available.'}); return; }
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const r = await apiFetch('/api/territories/nearest', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({latitude: pos.coords.latitude, longitude: pos.coords.longitude})
+      });
+      const data = await r.json();
+      setResult({message:`Found ${(data.items || []).length} nearby territories.`});
+    });
+  }
+
+  // ── Registration ──────────────────────────────────
+  async function submitRegistration() {
+    return apiFetch('/api/mini-app/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        full_name:          document.getElementById('full_name').value,
+        phone:              document.getElementById('phone').value,
+        region:             document.getElementById('region').value,
+        zone:               document.getElementById('zone').value,
+        woreda:             document.getElementById('woreda').value,
+        kebele:             document.getElementById('kebele').value,
+        village:            document.getElementById('village').value,
+        preferred_territory:document.getElementById('preferred_territory').value,
+        applicant_type:     document.getElementById('applicant_type').value,
+        experience:         asBool('experience'),
+        experience_years:   Number(document.getElementById('experience_years').value || 0),
+        work_type:          document.getElementById('work_type').value,
+        has_shop:           asBool('has_shop'),
+        can_install:        asBool('can_install'),
+        id_file_front_url:  document.getElementById('id_file_front_url').value,
+        id_file_back_url:   document.getElementById('id_file_back_url').value,
+        profile_photo_url:  document.getElementById('profile_photo_url').value || null,
+        picked_latitude:    pickedLatLng ? pickedLatLng.lat : null,
+        picked_longitude:   pickedLatLng ? pickedLatLng.lng : null
+      })
+    });
+  }
+
+  async function handleSubmitRegistration(btn) {
+    setBtnLoading(btn, true, 'Submitting…');
+    try {
+      const res = await submitRegistration();
+      const data = await res.json();
+      setResult(data.ok ? 'Registration submitted successfully! 🎉' : data);
+    } catch(e) { setResult({ok:false, error:'Submission failed. Please try again.'}); }
+    finally { setBtnLoading(btn, false); }
+  }
+
+  // ── Dashboard ─────────────────────────────────────
+  async function loadDashboard() {
+    const uid = miniSession?.telegram_user_id;
+    if (!uid) { setResult({ok:false, error:'Unable to identify Telegram user'}); return; }
+    const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}`);
+    const data = await res.json();
+    if (data.dashboard) {
+      const profile   = data.dashboard.profile   || data.dashboard;
+      const territory = data.dashboard.territory || data.dashboard;
+      document.getElementById('upd_full_name').value = profile.full_name || data.dashboard.full_name || '';
+      document.getElementById('upd_phone').value     = profile.phone     || data.dashboard.phone     || '';
+      document.getElementById('upd_region').value    = territory.region  || data.dashboard.region    || '';
+      document.getElementById('upd_territory').value = territory.village || data.dashboard.preferred_territory || '';
+      const appId = profile.application_id || data.dashboard.application_id;
+      if (appId) {
+        document.getElementById('training_application_id').value = appId;
+        document.getElementById('perf_application_id').value     = appId;
+      }
+      // Update profile card
+      const cardName = document.getElementById('profileCardName');
+      const cardMeta = document.getElementById('profileCardMeta');
+      const cardEl   = document.getElementById('agentProfileCard');
+      if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || 'Agent';
+      if (cardMeta) cardMeta.textContent = [profile.agent_tag, profile.status || data.dashboard.status].filter(Boolean).join(' · ');
+      if (cardEl)   cardEl.style.display = '';
+    }
+    setResult(data.ok ? 'Dashboard loaded.' : data);
+  }
+
+  async function handleLoadDashboard(btn) {
+    setBtnLoading(btn, true, 'Loading…');
+    try { await loadDashboard(); }
+    catch(e) { setResult({ok:false, error:'Failed to load dashboard.'}); }
+    finally  { setBtnLoading(btn, false); }
+  }
+
+  // ── Profile update ────────────────────────────────
+  async function updateProfile() {
+    const uid = miniSession?.telegram_user_id;
+    if (!uid) { setResult({ok:false, error:'Unable to identify Telegram user'}); return; }
+    const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}/profile`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        full_name:           document.getElementById('upd_full_name').value,
+        phone:               document.getElementById('upd_phone').value,
+        region:              document.getElementById('upd_region').value,
+        preferred_territory: document.getElementById('upd_territory').value
+      })
+    });
+    const data = await res.json();
+    setResult(data.ok ? 'Profile updated.' : data);
+  }
+
+  async function handleUpdateProfile(btn) {
+    setBtnLoading(btn, true, 'Saving…');
+    try { await updateProfile(); }
+    catch(e) { setResult({ok:false, error:'Update failed.'}); }
+    finally  { setBtnLoading(btn, false); }
+  }
+
+  // ── Training ──────────────────────────────────────
+  async function markTraining() {
+    const appId = document.getElementById('training_application_id').value.trim();
+    const moduleKey = document.getElementById('training_module_key').value.trim();
+    if (!appId || !moduleKey) { setResult({ok:false, error:'application_id and module_key are required'}); return; }
+    const res = await apiFetch(`/api/agent/training/${encodeURIComponent(appId)}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({module_key: moduleKey, completed: asBool('training_completed')})
+    });
+    const data = await res.json();
+    setResult(data.ok ? 'Training progress saved.' : data);
+  }
+
+  async function handleMarkTraining(btn) {
+    setBtnLoading(btn, true, 'Saving…');
+    try { await markTraining(); }
+    catch(e) { setResult({ok:false, error:'Failed to save training progress.'}); }
+    finally  { setBtnLoading(btn, false); }
+  }
+
+  // ── Performance ───────────────────────────────────
+  async function submitPerformance() {
+    let metadata = {};
+    try { metadata = JSON.parse(document.getElementById('perf_metadata').value || '{}'); }
+    catch { setResult({ok:false, error:'Metadata must be valid JSON'}); return; }
+    const res = await apiFetch('/api/performance/events', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        application_id: document.getElementById('perf_application_id').value,
+        event_type:     document.getElementById('perf_event_type').value,
+        event_value:    Number(document.getElementById('perf_event_value').value || 0),
+        occurred_at:    document.getElementById('perf_occurred_at').value || null,
+        metadata
+      })
+    });
+    setResult(await res.json());
+  }
+
+  async function handleSubmitPerformance(btn) {
+    setBtnLoading(btn, true, 'Submitting…');
+    try { await submitPerformance(); }
+    catch(e) { setResult({ok:false, error:'Failed to submit event.'}); }
+    finally  { setBtnLoading(btn, false); }
+  }
+
+  // ── Rankings ──────────────────────────────────────
+  function drawRankList(title, emoji, items, valueKey, valueSuffix = '') {
+    if (!items?.length) {
+      return `<p class="muted" style="margin:8px 0">${title}: No data yet.</p>`;
+    }
+    const rows = items.map((item, idx) => `
+      <div class="rank-item">
+        <div class="rank-num">${idx + 1}</div>
+        <div class="rank-name">${item.full_name || 'N/A'}</div>
+        <div class="rank-phone">${item.phone || ''}</div>
+        <div class="rank-score">${item[valueKey] ?? 0}${valueSuffix}</div>
+      </div>
+    `).join('');
+    return `
+      <div class="rank-title">${emoji} ${title}</div>
+      <div class="rank-list">${rows}</div>
+    `;
+  }
+
+  async function loadRankings() {
+    const res = await apiFetch('/api/rankings');
+    const data = await res.json();
+    document.getElementById('rankingsContainer').innerHTML =
+      drawRankList('Top Sales Agents',     '💰', data.rankings?.top_sales_agents  || [], 'total_sales',     ' sales') +
+      drawRankList('Top Installer Agents', '🔧', data.rankings?.top_installers    || data.rankings?.top_installer_agents || [], 'completed_jobs', ' jobs');
+    setResult('Rankings refreshed.');
+  }
+
+  // drawRankTable kept for backward-compat
+  function drawRankTable(title, items, valueKey) {
+    return drawRankList(title, '🏆', items, valueKey);
+  }
+
+  async function handleLoadRankings(btn) {
+    setBtnLoading(btn, true, 'Loading…');
+    try { await loadRankings(); }
+    catch(e) { setResult({ok:false, error:'Failed to load rankings.'}); }
+    finally  { setBtnLoading(btn, false); }
+  }
+
+  // ── Init ──────────────────────────────────────────
+  async function initMiniApp() {
+    try {
+      const res = await apiFetch('/api/mini-app/session');
+      const data = await res.json();
+      if (!data.ok) { setResult(data); return; }
+      miniSession = data.session;
+      const label = miniSession.user?.first_name || tgUser?.first_name || 'Agent';
+      const userEl = document.getElementById('welcomeUser');
+      if (userEl) userEl.textContent = label;
+      if (miniSession.is_admin) {
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+      }
+      await loadDashboard();
+      await loadTerritories();
+      await loadRankings();
+    } catch(e) {
+      console.warn('initMiniApp error:', e);
+    }
+  }
+
+  initMiniApp();
+</script>
+</body>
+</html>
