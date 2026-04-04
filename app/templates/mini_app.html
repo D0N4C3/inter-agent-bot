@@ -499,6 +499,30 @@
     return document.getElementById(id).value === 'true';
   }
 
+  function normalizeKey(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function localizeEnum(value, prefix) {
+    const normalized = normalizeKey(value);
+    if (!normalized) return '';
+    return t(`${prefix}_${normalized}`);
+  }
+
+  function getLocalizedModuleField(module, field) {
+    const key = module?.module_key;
+    if (!key) return module?.[field] || '';
+    const translated = t(`training_module_${normalizeKey(key)}_${field}`);
+    if (translated && translated !== `training_module_${normalizeKey(key)}_${field}`) {
+      return translated;
+    }
+    return module?.[field] || '';
+  }
+
   function toggleBusinessQuestions() {
     const hasShop = asBool('has_shop');
     const group = document.getElementById('businessDetailsGroup');
@@ -827,11 +851,15 @@
       const cardMeta = document.getElementById('profileCardMeta');
       const cardEl   = document.getElementById('agentProfileCard');
       if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || t('agent_fallback');
-      if (cardMeta) cardMeta.textContent = [profile.agent_tag, profile.status || data.dashboard.status].filter(Boolean).join(' · ');
+      if (cardMeta) {
+        const localizedTag = localizeEnum(profile.agent_tag, 'agent_tag');
+        const localizedStatus = localizeEnum(profile.status || data.dashboard.status, 'status');
+        cardMeta.textContent = [localizedTag, localizedStatus].filter(Boolean).join(' · ');
+      }
       if (cardEl)   cardEl.style.display = '';
       const statusPill = document.getElementById('profileStatusPill');
       if (statusPill) {
-        statusPill.textContent = profile.status || t('submitted');
+        statusPill.textContent = localizeEnum(profile.status, 'status') || t('submitted');
         statusPill.dataset.status = (profile.status || '').toLowerCase();
       }
       renderDashboardHighlights(data.dashboard);
@@ -913,15 +941,15 @@
           <div class="training-card__header">
             <div class="training-card__marker">${done ? '✓' : '•'}</div>
             <div class="training-card__title-wrap">
-              <div class="training-card__title">${module.title}</div>
-              <div class="training-card__desc">${module.description || ''}</div>
+              <div class="training-card__title">${getLocalizedModuleField(module, 'title')}</div>
+              <div class="training-card__desc">${getLocalizedModuleField(module, 'description')}</div>
             </div>
           </div>
           <div class="training-card__footer">
             <div class="training-card__resources">
-              ${attachments.pdf ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.pdf}">PDF</a>` : ''}
-              ${attachments.video ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.video}">Video</a>` : ''}
-              ${attachments.playbook ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.playbook}">Playbook</a>` : ''}
+              ${attachments.pdf ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.pdf}">${t('resource_pdf')}</a>` : ''}
+              ${attachments.video ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.video}">${t('resource_video')}</a>` : ''}
+              ${attachments.playbook ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.playbook}">${t('resource_playbook')}</a>` : ''}
             </div>
             <button class="btn ${done ? 'btn-secondary' : 'btn-primary'} training-card__action"
               onclick="handleMarkTraining(this, '${module.module_key}', ${done ? 'false' : 'true'})">${done ? t('mark_incomplete') : t('mark_complete')}</button>
@@ -948,7 +976,7 @@
       <div class="highlight-card"><div class="highlight-label">${t('training_progress')}</div><div class="highlight-value">${trainingCompleted}/${trainingTotal || 0}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('sales_logged')}</div><div class="highlight-value">${sales}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('install_jobs')}</div><div class="highlight-value">${installs}</div></div>
-      <div class="highlight-card"><div class="highlight-label">${t('work_type')}</div><div class="highlight-value">${profile.work_type || '—'}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('work_type')}</div><div class="highlight-value">${localizeEnum(profile.work_type, 'work_type') || profile.work_type || '—'}</div></div>
     `;
   }
 
