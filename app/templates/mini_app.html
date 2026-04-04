@@ -103,22 +103,22 @@
     <!-- Registration Tab -->
     <section id="tab-registration" class="tab active">
       <div class="section-header">
-        <div class="section-title">Apply as Agent</div>
-        <div class="section-sub">Complete all sections below to submit your application.</div>
+        <div class="section-title" data-i18n="apply_as_agent">Apply as Agent</div>
+        <div class="section-sub" data-i18n="registration_intro">Complete all sections below to submit your application.</div>
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">👤</span>Personal Information</div>
+        <div class="card-head"><span class="card-head-icon">👤</span><span data-i18n="personal_information">Personal Information</span></div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>Full name</label><input id="full_name" placeholder="Your full name" /></div>
-            <div class="field"><label>Phone number</label><input id="phone" placeholder="+2519XXXXXXXX" /></div>
+            <div class="field"><label data-i18n="full_name_label">Full name</label><input id="full_name" placeholder="Your full name" data-i18n-placeholder="full_name_placeholder" /></div>
+            <div class="field"><label data-i18n="phone_number_label">Phone number</label><input id="phone" placeholder="+2519XXXXXXXX" data-i18n-placeholder="phone_number_placeholder" /></div>
             <div class="field">
-              <label>Application type</label>
+              <label data-i18n="application_type_label">Application type</label>
               <select id="applicant_type">
-                <option value="sales_only">Sales Agent</option>
-                <option value="installer_only">Installer Agent</option>
-                <option value="sales_installer" selected>Both (Sales + Installer)</option>
+                <option value="sales_only" data-i18n="application_type_sales_agent">Sales Agent</option>
+                <option value="installer_only" data-i18n="application_type_installer_agent">Installer Agent</option>
+                <option value="sales_installer" selected data-i18n="application_type_both">Both (Sales + Installer)</option>
               </select>
             </div>
           </div>
@@ -126,81 +126,81 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">📍</span>Location Details</div>
+        <div class="card-head"><span class="card-head-icon">📍</span><span data-i18n="location_details">Location Details</span></div>
         <div class="card-body">
           <div class="form-grid">
             <div class="field">
-              <label>Region</label>
+              <label data-i18n="region_label">Region</label>
               <select id="region"><option value="">Select region</option></select>
             </div>
             <div class="field">
-              <label>Zone</label>
+              <label data-i18n="zone_label">Zone</label>
               <select id="zone"><option value="">Select zone</option></select>
             </div>
             <div class="field">
-              <label>Woreda</label>
+              <label data-i18n="woreda_label">Woreda</label>
               <select id="woreda"><option value="">Select woreda</option></select>
             </div>
             <div class="field">
-              <label>Do you live in the territory?</label>
-              <select id="preferred_territory"><option value="yes">Yes</option><option value="no">No</option></select>
+              <label data-i18n="live_in_territory_label">Do you live in the territory?</label>
+              <select id="preferred_territory"><option value="yes" data-i18n="yes">Yes</option><option value="no" data-i18n="no">No</option></select>
             </div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">💼</span>Work Profile</div>
+        <div class="card-head"><span class="card-head-icon">💼</span><span data-i18n="work_profile">Work Profile</span></div>
         <div class="card-body">
           <div class="form-grid">
             <div class="field">
-              <label>Do you have experience?</label>
-              <select id="experience"><option value="true">Yes</option><option value="false">No</option></select>
+              <label data-i18n="have_experience_label">Do you have experience?</label>
+              <select id="experience"><option value="true" data-i18n="yes">Yes</option><option value="false" data-i18n="no">No</option></select>
             </div>
-            <div class="field"><label>Years of experience</label><input id="experience_years" type="number" min="0" value="0" /></div>
-            <div class="field"><label>Work type</label><input id="work_type" placeholder="Sales, installer, technician…" /></div>
+            <div class="field"><label data-i18n="years_experience_label">Years of experience</label><input id="experience_years" type="number" min="0" value="0" /></div>
+            <div class="field"><label data-i18n="work_type_label">Work type</label><input id="work_type" placeholder="Sales, installer, technician…" data-i18n-placeholder="work_type_placeholder" /></div>
             <div class="field">
-              <label>Have a shop or business?</label>
-              <select id="has_shop"><option value="true">Yes</option><option value="false">No</option></select>
+              <label data-i18n="has_shop_label">Have a shop or business?</label>
+              <select id="has_shop"><option value="true" data-i18n="yes">Yes</option><option value="false" data-i18n="no">No</option></select>
             </div>
             <div id="businessDetailsGroup" class="full-span hidden">
               <div class="form-grid">
-                <div class="field"><label>Business / Shop name</label><input id="business_name" placeholder="Name of business" /></div>
-                <div class="field"><label>Business type</label><input id="business_type" placeholder="Retail, hardware, electronics..." /></div>
-                <div class="field"><label>Business age (years)</label><input id="business_years" type="number" min="0" value="0" /></div>
-                <div class="field"><label>Average customers/week</label><input id="business_customers_weekly" type="number" min="0" value="0" /></div>
+                <div class="field"><label data-i18n="business_name_label">Business / Shop name</label><input id="business_name" placeholder="Name of business" data-i18n-placeholder="business_name_placeholder" /></div>
+                <div class="field"><label data-i18n="business_type_label">Business type</label><input id="business_type" placeholder="Retail, hardware, electronics..." data-i18n-placeholder="business_type_placeholder" /></div>
+                <div class="field"><label data-i18n="business_age_label">Business age (years)</label><input id="business_years" type="number" min="0" value="0" /></div>
+                <div class="field"><label data-i18n="average_customers_label">Average customers/week</label><input id="business_customers_weekly" type="number" min="0" value="0" /></div>
               </div>
             </div>
             <div class="field">
-              <label>Can install solar systems?</label>
-              <select id="can_install"><option value="true">Yes</option><option value="false">No</option></select>
+              <label data-i18n="can_install_label">Can install solar systems?</label>
+              <select id="can_install"><option value="true" data-i18n="yes">Yes</option><option value="false" data-i18n="no">No</option></select>
             </div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">📄</span>Document Uploads</div>
+        <div class="card-head"><span class="card-head-icon">📄</span><span data-i18n="document_uploads">Document Uploads</span></div>
         <div class="card-body">
           <div class="form-grid">
             <div class="field">
-              <label>National ID — Front</label>
+              <label data-i18n="national_id_front_label">National ID — Front</label>
               <input id="id_file_front" type="file" accept="image/*,.pdf" />
             </div>
             <div class="field">
-              <label>National ID — Back</label>
+              <label data-i18n="national_id_back_label">National ID — Back</label>
               <input id="id_file_back" type="file" accept="image/*,.pdf" />
             </div>
             <div class="field">
-              <label>Profile photo (optional)</label>
+              <label data-i18n="profile_photo_optional_label">Profile photo (optional)</label>
               <input id="profile_photo" type="file" accept="image/*" />
             </div>
           </div>
-          <div class="section-sub mt-2">Upload files directly from your device.</div>
+          <div class="section-sub mt-2" data-i18n="upload_files_hint">Upload files directly from your device.</div>
         </div>
       </div>
 
-      <button class="btn btn-primary" onclick="handleSubmitRegistration(this)">Submit Application</button>
+      <button class="btn btn-primary" onclick="handleSubmitRegistration(this)" data-i18n="submit_application">Submit Application</button>
     </section>
 
     <!-- Territories Tab -->
@@ -404,6 +404,11 @@
       const key = node.dataset.i18n;
       if (!key) return;
       node.textContent = labels[key] || MINI_I18N.en?.[key] || node.textContent;
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(node => {
+      const key = node.dataset.i18nPlaceholder;
+      if (!key) return;
+      node.placeholder = labels[key] || MINI_I18N.en?.[key] || node.placeholder;
     });
     const desktopPicker = document.getElementById('languagePicker');
     const mobilePicker = document.getElementById('languagePickerMobile');
@@ -723,10 +728,10 @@
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || t('failed_location_options'));
     locationRows = data.options?.rows || [];
-    setSelectOptions('region', data.options?.regions || [], 'Select region');
-    setSelectOptions('filter_region', data.options?.regions || [], 'All regions');
-    setSelectOptions('filter_zone', data.options?.zones || [], 'All zones');
-    setSelectOptions('filter_woreda', data.options?.woredas || [], 'All woredas');
+    setSelectOptions('region', data.options?.regions || [], t('select_region'));
+    setSelectOptions('filter_region', data.options?.regions || [], t('all_regions'));
+    setSelectOptions('filter_zone', data.options?.zones || [], t('all_zones'));
+    setSelectOptions('filter_woreda', data.options?.woredas || [], t('all_woredas'));
     const zoneSelect = document.getElementById('zone');
     const woredaSelect = document.getElementById('woreda');
     if (zoneSelect) zoneSelect.disabled = true;
