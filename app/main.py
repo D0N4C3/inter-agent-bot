@@ -24,21 +24,16 @@ from app.services import (
     add_bot_admin,
     count_admins,
     default_agent_tag,
-    delete_application_draft,
-    get_application_draft,
     get_application,
     get_agent_dashboard,
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
     get_applications,
     get_rankings,
-    get_stale_drafts,
     get_training_links,
     is_bot_admin,
     list_territories_for_map,
-    mark_draft_reminder_sent,
     save_application,
-    save_application_draft,
     send_admin_telegram_alert,
     send_notification_email,
     suggest_nearest_territories,
@@ -96,8 +91,6 @@ QUESTION_FLOW = [
     ("region", "prompt_region"),
     ("zone", "prompt_zone"),
     ("woreda", "prompt_woreda"),
-    ("kebele", "prompt_kebele"),
-    ("village", "prompt_village"),
     ("experience", "prompt_experience"),
     ("experience_years", "prompt_experience_years"),
     ("work_type", "prompt_work_type"),
@@ -307,7 +300,7 @@ async def ask_next(chat_id: int, user_id: int) -> None:
             await send_message(chat_id, prompt, keyboard=keyboard)
             return
 
-    if field in {"zone", "woreda", "kebele", "village"}:
+    if field in {"zone", "woreda"}:
         prior = session["answers"].get(field)
         if prior:
             await send_message(chat_id, f"{prompt}\nSuggestion: {prior}")
@@ -340,7 +333,6 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
         region=answers.get("region"),
         zone=answers.get("zone"),
         woreda=answers.get("woreda"),
-        kebele=answers.get("kebele"),
     )
     if not territory_valid:
         session["step_index"] = next(i for i, (k, _) in enumerate(QUESTION_FLOW) if k == "preferred_territory")
@@ -358,8 +350,8 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
         "region": answers["region"],
         "zone": answers["zone"],
         "woreda": answers["woreda"],
-        "kebele": answers["kebele"],
-        "village": answers["village"],
+        "kebele": "N/A",
+        "village": answers["preferred_territory"],
         "experience": answers["experience"],
         "experience_years": answers["experience_years"],
         "work_type": answers["work_type"],
@@ -381,7 +373,6 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     save_application(record)
     send_notification_email(record)
     send_admin_telegram_alert(record)
-    delete_application_draft(str(user_id))
     await send_message(chat_id, f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}")
     sessions.pop(user_id, None)
 
@@ -490,13 +481,6 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
-    save_application_draft(
-        telegram_user_id=str(user_id),
-        applicant_type=session["answers"]["applicant_type"],
-        language=session.get("language", "en"),
-        step_index=session["step_index"],
-        answers=session["answers"],
-    )
     await ask_next(chat_id, user_id)
 
 
@@ -598,32 +582,14 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
     return False
 
 
-async def start_registration(chat_id: int, user_id: int, applicant_type: str, force_new: bool = False) -> None:
+async def start_registration(chat_id: int, user_id: int, applicant_type: str) -> None:
     lang = sessions.get(user_id, {}).get("language", "en")
-    draft = None if force_new else get_application_draft(str(user_id))
-    if draft and isinstance(draft.get("answers"), dict):
-        sessions[user_id] = {
-            "step_index": int(draft.get("step_index") or 0),
-            "answers": draft["answers"],
-            "language": draft.get("language") or lang,
-            "resume_pending": False,
-        }
-        await send_message(chat_id, tr(user_id, "registration_resumed"))
-        await ask_next(chat_id, user_id)
-        return
 
     sessions[user_id] = {
         "step_index": 0,
         "answers": {"applicant_type": applicant_type},
         "language": lang,
     }
-    save_application_draft(
-        telegram_user_id=str(user_id),
-        applicant_type=applicant_type,
-        language=lang,
-        step_index=0,
-        answers=sessions[user_id]["answers"],
-    )
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
@@ -631,27 +597,6 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str, fo
 @app.route("/health", methods=["GET"])
 def health() -> dict:
     return {"status": "ok"}
-
-
-async def _remind_incomplete_applications() -> dict:
-    stale_drafts = get_stale_drafts(hours=24)
-    sent = 0
-    for draft in stale_drafts:
-        user_id = int(draft["telegram_user_id"])
-        sessions.setdefault(user_id, {})
-        sessions[user_id]["language"] = draft.get("language") or "en"
-        await send_message(
-            user_id,
-            f"{tr(user_id, 'resume_prompt')}\n{tr(user_id, 'timeline')}\n{tr(user_id, 'send_register_continue')}",
-        )
-        mark_draft_reminder_sent(str(user_id))
-        sent += 1
-    return {"ok": True, "reminders_sent": sent}
-
-
-@app.route("/jobs/remind-incomplete", methods=["POST"])
-def remind_incomplete_applications() -> dict:
-    return asyncio.run(_remind_incomplete_applications())
 
 
 async def _telegram_webhook(update: dict) -> dict:
@@ -819,27 +764,11 @@ async def _telegram_webhook(update: dict) -> dict:
             return {"ok": True}
 
         if text == "/register":
-            existing_draft = get_application_draft(str(user_id))
-            if existing_draft:
-                sessions.setdefault(user_id, {})
-                sessions[user_id]["resume_pending"] = True
-                await send_message(chat_id, tr(user_id, "resume_prompt"), keyboard=[[tr(user_id, "resume_yes")], [tr(user_id, "resume_no")]])
-                return {"ok": True}
             await send_message(
                 chat_id,
                 tr(user_id, "register_choose_type"),
                 keyboard=[[tr(user_id, "btn_register_sales")], [tr(user_id, "btn_register_installer")], [tr(user_id, "btn_register_both")]],
             )
-            return {"ok": True}
-
-        if text in {tr(user_id, "resume_yes"), tr(user_id, "resume_no")} and sessions.get(user_id, {}).get("resume_pending"):
-            sessions[user_id]["resume_pending"] = False
-            applicant_type = get_application_draft(str(user_id)).get("applicant_type", "sales_only")
-            if text == tr(user_id, "resume_yes"):
-                await start_registration(chat_id, user_id, applicant_type, force_new=False)
-            else:
-                delete_application_draft(str(user_id))
-                await start_registration(chat_id, user_id, applicant_type, force_new=True)
             return {"ok": True}
 
         applicant_type_by_button = {
