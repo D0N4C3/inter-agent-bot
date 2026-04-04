@@ -6,6 +6,7 @@ import uuid
 from flask import Blueprint, Response, render_template, request
 
 from app.config import settings
+from app.i18n import load_mini_app_strings
 from app.scoring import score_application
 from app.services import (
     VALID_UI_LANGUAGES,
@@ -35,6 +36,7 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
                 mini_app_primary_color=settings.mini_app_primary_color,
                 google_maps_sdk_key=settings.google_maps_sdk_key,
                 default_lang=default_lang,
+                mini_app_strings=load_mini_app_strings(),
             ),
             mimetype="text/html",
         )
@@ -95,8 +97,14 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
             "experience_years": int(payload.get("experience_years") or 0),
             "work_type": payload.get("work_type", "N/A"),
             "has_shop": bool(payload.get("has_shop", False)),
+            "business_name": payload.get("business_name"),
+            "business_type": payload.get("business_type"),
+            "business_years": int(payload.get("business_years") or 0),
+            "business_customers_weekly": int(payload.get("business_customers_weekly") or 0),
             "can_install": bool(payload.get("can_install", False)),
             "preferred_territory": payload["preferred_territory"],
+            "picked_latitude": payload.get("picked_latitude"),
+            "picked_longitude": payload.get("picked_longitude"),
             "id_file_front_url": payload.get("id_file_front_url") or "mini-app-placeholder",
             "id_file_back_url": payload.get("id_file_back_url") or "mini-app-placeholder",
             "profile_photo_url": payload.get("profile_photo_url"),

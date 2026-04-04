@@ -20,8 +20,14 @@ create table if not exists inter_agent_apply.agent_applications (
   experience_years integer not null default 0,
   work_type text not null,
   has_shop boolean not null,
+  business_name text,
+  business_type text,
+  business_years integer not null default 0,
+  business_customers_weekly integer not null default 0,
   can_install boolean not null,
   preferred_territory text not null,
+  picked_latitude double precision,
+  picked_longitude double precision,
   id_file_front_url text not null,
   id_file_back_url text not null,
   profile_photo_url text,
@@ -41,6 +47,18 @@ alter table inter_agent_apply.agent_applications
   add column if not exists performance_potential text not null default 'Medium';
 alter table inter_agent_apply.agent_applications
   add column if not exists internal_remarks text;
+alter table inter_agent_apply.agent_applications
+  add column if not exists business_name text;
+alter table inter_agent_apply.agent_applications
+  add column if not exists business_type text;
+alter table inter_agent_apply.agent_applications
+  add column if not exists business_years integer not null default 0;
+alter table inter_agent_apply.agent_applications
+  add column if not exists business_customers_weekly integer not null default 0;
+alter table inter_agent_apply.agent_applications
+  add column if not exists picked_latitude double precision;
+alter table inter_agent_apply.agent_applications
+  add column if not exists picked_longitude double precision;
 
 create index if not exists idx_agent_applications_telegram_user
   on inter_agent_apply.agent_applications (telegram_user_id);
