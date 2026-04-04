@@ -38,7 +38,7 @@ VALID_TERRITORY_AVAILABILITY = {
     "blocked",
 }
 
-VALID_UI_LANGUAGES = {"en", "am"}
+VALID_UI_LANGUAGES = {"en", "am", "om", "ti"}
 
 
 def get_supabase() -> Client:

@@ -32,6 +32,8 @@
         <select id="languagePicker" class="premium-select">
           <option value="en">English</option>
           <option value="am">አማርኛ</option>
+          <option value="om">Afaan Oromo</option>
+          <option value="ti">ትግርኛ</option>
         </select>
       </div>
       <div class="user-chip">
@@ -97,6 +99,8 @@
       <select id="languagePickerMobile" class="premium-select" aria-label="Choose language">
         <option value="en">English</option>
         <option value="am">አማርኛ</option>
+        <option value="om">Afaan Oromo</option>
+        <option value="ti">ትግርኛ</option>
       </select>
     </div>
 
@@ -359,6 +363,8 @@
     <div class="language-gate-actions">
       <button type="button" class="btn btn-primary" data-language-choice="en">English</button>
       <button type="button" class="btn btn-secondary" data-language-choice="am">አማርኛ</button>
+      <button type="button" class="btn btn-secondary" data-language-choice="om">Afaan Oromo</button>
+      <button type="button" class="btn btn-secondary" data-language-choice="ti">ትግርኛ</button>
     </div>
   </div>
 </div>
@@ -380,7 +386,7 @@
   const tgUser = tg?.initDataUnsafe?.user || null;
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
-  const supportedLanguages = ['en', 'am'];
+  const supportedLanguages = ['en', 'am', 'om', 'ti'];
   function normalizeLanguage(value) {
     return supportedLanguages.includes(value) ? value : null;
   }
