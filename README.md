@@ -15,7 +15,9 @@ Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 - English + Amharic language selection for user-facing flow.
 - Incomplete application draft recovery + reminder job endpoint.
 - File validation (size/format) and safer randomized storage filenames.
-- Telegram Mini App UI endpoint for registration with map-enabled territory selection.
+- Telegram Mini App UI upgraded to a premium multi-workspace experience:
+  registration, territory intelligence, agent dashboard/profile updates,
+  training tracking, performance event entry, and live rankings.
 - GPS nearest-territory suggestions.
 - Agent-side dashboard APIs (status, territory, training, profile updates).
 - Performance event tracking APIs for sales/installers.
@@ -70,7 +72,8 @@ Background job endpoint:
 
 ## 3.1) Mini App + Platform APIs
 
-- `GET /mini-app` — Telegram mini app ready UI form with map interaction.
+- `GET /mini-app` — premium Telegram mini app for the full workflow:
+  all agent/installer data entry via UI forms + map + dashboards.
 - `POST /api/mini-app/register` — register directly from mini app payload.
 - `GET /api/territories/map` — map dataset (with coordinates, availability).
 - `POST /api/territories/nearest` — GPS-based nearest available territories.

@@ -1056,47 +1056,256 @@ def mini_app() -> Response:
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{settings.mini_app_name}</title>
       <style>
-        body {{ font-family: Inter, Arial, sans-serif; padding: 16px; background: #f5f8ff; }}
-        .card {{ background: white; border-radius: 12px; padding: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }}
-        input, select, button {{ width: 100%; margin: 6px 0; padding: 10px; border: 1px solid #d8e2f0; border-radius: 8px; }}
-        button {{ background: {settings.mini_app_primary_color}; color: white; border: none; font-weight: 600; }}
-        #map {{ height: 260px; border-radius: 12px; margin: 12px 0; }}
+        :root {{
+          --brand: {settings.mini_app_primary_color};
+          --bg: #0f172a;
+          --card: rgba(15, 23, 42, 0.62);
+          --line: rgba(148, 163, 184, 0.28);
+          --text: #e2e8f0;
+          --muted: #94a3b8;
+          --ok: #16a34a;
+          --warn: #eab308;
+          --danger: #dc2626;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{
+          margin: 0;
+          font-family: Inter, ui-sans-serif, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+          color: var(--text);
+          background:
+            radial-gradient(circle at 20% 0%, rgba(59,130,246,.24), transparent 40%),
+            radial-gradient(circle at 80% 10%, rgba(34,197,94,.14), transparent 35%),
+            linear-gradient(180deg, #020617 0%, #0b1120 70%, #020617 100%);
+          min-height: 100vh;
+          padding: 20px;
+        }}
+        .shell {{ max-width: 1200px; margin: 0 auto; }}
+        .hero {{
+          display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+          margin-bottom: 16px;
+        }}
+        .hero-card {{
+          background: linear-gradient(140deg, rgba(30,41,59,.85), rgba(15,23,42,.7));
+          border: 1px solid var(--line);
+          border-radius: 18px;
+          padding: 18px;
+          flex: 1;
+          min-width: 260px;
+          box-shadow: 0 16px 35px rgba(0,0,0,.3);
+        }}
+        .kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }}
+        .kpi {{ border: 1px solid var(--line); border-radius: 14px; padding: 10px; background: rgba(15,23,42,.45); }}
+        .kpi b {{ display: block; font-size: 18px; margin-bottom: 4px; }}
+        .grid {{ display: grid; grid-template-columns: 260px 1fr; gap: 14px; }}
+        .nav, .panel {{
+          border: 1px solid var(--line);
+          border-radius: 16px;
+          background: var(--card);
+          backdrop-filter: blur(8px);
+        }}
+        .nav {{ padding: 10px; position: sticky; top: 12px; height: fit-content; }}
+        .nav button {{
+          width: 100%;
+          margin: 6px 0;
+          border-radius: 10px;
+          border: 1px solid var(--line);
+          background: rgba(15,23,42,.5);
+          color: var(--text);
+          font-weight: 600;
+          padding: 10px;
+          cursor: pointer;
+          text-align: left;
+        }}
+        .nav button.active {{ background: linear-gradient(90deg, var(--brand), #1d4ed8); border-color: transparent; }}
+        .panel {{ padding: 16px; }}
+        .tab {{ display: none; }}
+        .tab.active {{ display: block; }}
+        .section-title {{ margin: 0 0 8px; font-size: 20px; }}
+        .muted {{ color: var(--muted); font-size: 14px; margin-top: 0; }}
+        .form-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }}
+        label {{ font-size: 12px; color: #cbd5e1; display: block; margin-bottom: 4px; }}
+        input, select, textarea, button {{
+          width: 100%;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+          background: rgba(15,23,42,.48);
+          color: var(--text);
+          padding: 10px;
+        }}
+        textarea {{ min-height: 92px; resize: vertical; }}
+        button {{
+          background: linear-gradient(90deg, var(--brand), #1d4ed8);
+          border: 0;
+          font-weight: 700;
+          cursor: pointer;
+        }}
+        .secondary {{ background: rgba(15,23,42,.4); border: 1px solid var(--line); }}
+        #map {{ height: 280px; border-radius: 14px; margin: 12px 0; border: 1px solid var(--line); }}
+        pre {{
+          white-space: pre-wrap; word-break: break-word; font-size: 12px;
+          background: rgba(2,6,23,.6); border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+        }}
+        table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+        th, td {{ border-bottom: 1px solid var(--line); padding: 8px; text-align: left; }}
+        .pill {{ padding: 3px 9px; border-radius: 999px; font-size: 12px; display: inline-block; }}
+        .ok {{ background: rgba(22,163,74,.2); color: #86efac; }}
+        .warn {{ background: rgba(234,179,8,.18); color: #fde047; }}
+        .danger {{ background: rgba(220,38,38,.2); color: #fecaca; }}
+        @media (max-width: 860px) {{
+          .grid {{ grid-template-columns: 1fr; }}
+          .nav {{ position: static; }}
+        }}
       </style>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     </head>
     <body>
-      <div class="card">
-        <h3>🚀 {settings.mini_app_name}</h3>
-        <p>Complete your registration with map-based territory selection.</p>
-        <input id="telegram_user_id" placeholder="Telegram User ID" />
-        <input id="full_name" placeholder="Full name" />
-        <input id="phone" placeholder="Phone (+2519...)" />
-        <input id="region" placeholder="Region" />
-        <input id="zone" placeholder="Zone" />
-        <input id="woreda" placeholder="Woreda" />
-        <input id="kebele" placeholder="Kebele" />
-        <input id="village" placeholder="Village" />
-        <input id="preferred_territory" placeholder="Preferred Territory" />
-        <button onclick="suggestNearest()">Suggest nearest territories by GPS</button>
-        <div id="map"></div>
-        <button onclick="submitRegistration()">Submit Registration</button>
-        <pre id="result"></pre>
+      <div class="shell">
+        <div class="hero">
+          <div class="hero-card">
+            <h2 style="margin-top:0">⚡ {settings.mini_app_name}</h2>
+            <p class="muted">Premium mini app to operate the full agent funnel: registration, territory intelligence, dashboards, training, performance tracking, and rankings.</p>
+            <div class="kpis">
+              <div class="kpi"><b id="kpiTerritories">0</b><span class="muted">Mapped territories</span></div>
+              <div class="kpi"><b id="kpiOpen">0</b><span class="muted">Open territories</span></div>
+              <div class="kpi"><b id="kpiLocked">0</b><span class="muted">Locked territories</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid">
+          <aside class="nav">
+            <button class="tab-btn active" data-tab="registration">🧾 Registration</button>
+            <button class="tab-btn" data-tab="territories">🗺 Territory Intelligence</button>
+            <button class="tab-btn" data-tab="agent">👤 Agent Dashboard</button>
+            <button class="tab-btn" data-tab="training">🎓 Training Progress</button>
+            <button class="tab-btn" data-tab="performance">📈 Performance Input</button>
+            <button class="tab-btn" data-tab="rankings">🏆 Rankings</button>
+          </aside>
+          <main class="panel">
+            <section id="tab-registration" class="tab active">
+              <h3 class="section-title">Agent / Installer Application</h3>
+              <p class="muted">All candidate data is collected from this form. Fields are mapped to your existing bot schema and API.</p>
+              <div class="form-grid">
+                <div><label>Telegram User ID</label><input id="telegram_user_id" /></div>
+                <div><label>Full name</label><input id="full_name" /></div>
+                <div><label>Phone</label><input id="phone" placeholder="+2519..." /></div>
+                <div><label>Applicant type</label><select id="applicant_type"><option value="sales_only">Sales Agent</option><option value="installer_only">Installer</option><option value="sales_installer" selected>Both</option></select></div>
+                <div><label>Region</label><input id="region" /></div>
+                <div><label>Zone</label><input id="zone" /></div>
+                <div><label>Woreda</label><input id="woreda" /></div>
+                <div><label>Kebele</label><input id="kebele" /></div>
+                <div><label>Village</label><input id="village" /></div>
+                <div><label>Preferred territory</label><input id="preferred_territory" /></div>
+                <div><label>Experience</label><select id="experience"><option value="true">Yes</option><option value="false">No</option></select></div>
+                <div><label>Experience years</label><input id="experience_years" type="number" min="0" value="0" /></div>
+                <div><label>Work type</label><input id="work_type" placeholder="Sales, install, technician..." /></div>
+                <div><label>Has shop/business</label><select id="has_shop"><option value="true">Yes</option><option value="false">No</option></select></div>
+                <div><label>Can install solar</label><select id="can_install"><option value="true">Yes</option><option value="false">No</option></select></div>
+                <div><label>ID front URL</label><input id="id_file_front_url" placeholder="https://..." /></div>
+                <div><label>ID back URL</label><input id="id_file_back_url" placeholder="https://..." /></div>
+                <div><label>Profile photo URL (optional)</label><input id="profile_photo_url" placeholder="https://..." /></div>
+              </div>
+              <button onclick="submitRegistration()">Submit Registration</button>
+            </section>
+
+            <section id="tab-territories" class="tab">
+              <h3 class="section-title">Territory Intelligence</h3>
+              <p class="muted">Visualize open vs locked territories, pick map location, and get nearest suggestions from GPS.</p>
+              <div class="form-grid">
+                <div><label>Region filter</label><input id="filter_region" /></div>
+                <div><label>Zone filter</label><input id="filter_zone" /></div>
+                <div><label>Woreda filter</label><input id="filter_woreda" /></div>
+              </div>
+              <button class="secondary" onclick="loadTerritories()">Refresh map data</button>
+              <button onclick="suggestNearest()">Suggest nearest territories by GPS</button>
+              <div id="map"></div>
+            </section>
+
+            <section id="tab-agent" class="tab">
+              <h3 class="section-title">Agent Dashboard Lookup + Profile Update</h3>
+              <div class="form-grid">
+                <div><label>Telegram User ID</label><input id="dashboard_user_id" /></div>
+              </div>
+              <button onclick="loadDashboard()">Load Dashboard</button>
+              <div class="form-grid">
+                <div><label>Full name</label><input id="upd_full_name" /></div>
+                <div><label>Phone</label><input id="upd_phone" /></div>
+                <div><label>Region</label><input id="upd_region" /></div>
+                <div><label>Preferred territory</label><input id="upd_territory" /></div>
+              </div>
+              <button class="secondary" onclick="updateProfile()">Update Profile</button>
+            </section>
+
+            <section id="tab-training" class="tab">
+              <h3 class="section-title">Training Completion</h3>
+              <div class="form-grid">
+                <div><label>Application ID</label><input id="training_application_id" /></div>
+                <div><label>Module key</label><input id="training_module_key" placeholder="safety_intro" /></div>
+                <div><label>Completed</label><select id="training_completed"><option value="true">Yes</option><option value="false">No</option></select></div>
+              </div>
+              <button onclick="markTraining()">Save Training Progress</button>
+            </section>
+
+            <section id="tab-performance" class="tab">
+              <h3 class="section-title">Performance Event Entry (Admin)</h3>
+              <div class="form-grid">
+                <div><label>Application ID</label><input id="perf_application_id" /></div>
+                <div><label>Event type</label><select id="perf_event_type"><option value="sale_closed">Sale Closed</option><option value="installer_job_completed">Installer Job Completed</option><option value="training_completed">Training Completed</option></select></div>
+                <div><label>Event value</label><input id="perf_event_value" type="number" value="1" step="0.01" /></div>
+                <div><label>Occurred at (ISO optional)</label><input id="perf_occurred_at" placeholder="2026-04-04T12:00:00Z" /></div>
+                <div style="grid-column: 1 / -1"><label>Metadata JSON</label><textarea id="perf_metadata">{{}}</textarea></div>
+              </div>
+              <button onclick="submitPerformance()">Submit Event</button>
+            </section>
+
+            <section id="tab-rankings" class="tab">
+              <h3 class="section-title">Top Performers</h3>
+              <button onclick="loadRankings()">Refresh Rankings</button>
+              <div id="rankingsContainer"></div>
+            </section>
+
+            <h4 style="margin-bottom:8px">API Output</h4>
+            <pre id="result"></pre>
+          </main>
+        </div>
       </div>
       <script>
+        function asBool(id) {{
+          return document.getElementById(id).value === 'true';
+        }}
+        function setResult(obj) {{
+          document.getElementById('result').innerText = JSON.stringify(obj, null, 2);
+        }}
+        document.querySelectorAll('.tab-btn').forEach((btn) => {{
+          btn.addEventListener('click', () => {{
+            document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach((s) => s.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`tab-${{btn.dataset.tab}}`).classList.add('active');
+          }});
+        }});
         const map = L.map('map').setView([8.9806, 38.7578], 6);
         L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{ maxZoom: 19 }}).addTo(map);
         let territoryMarkers = [];
         let pickedLatLng = null;
         map.on('click', (e) => {{
           pickedLatLng = e.latlng;
-          document.getElementById('result').innerText = `Selected location: ${{e.latlng.lat.toFixed(5)}}, ${{e.latlng.lng.toFixed(5)}}`;
+          setResult({{picked_location: [e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6)]}});
         }});
         async function loadTerritories() {{
-          const res = await fetch('/api/territories/map');
+          const qp = new URLSearchParams();
+          ['region','zone','woreda'].forEach((k) => {{
+            const v = document.getElementById(`filter_${{k}}`)?.value?.trim();
+            if (v) qp.set(k, v);
+          }});
+          const res = await fetch(`/api/territories/map?${{qp.toString()}}`);
           const data = await res.json();
           territoryMarkers.forEach(m => m.remove());
           territoryMarkers = [];
+          const items = data.items || [];
+          document.getElementById('kpiTerritories').innerText = items.length;
+          document.getElementById('kpiOpen').innerText = items.filter((t) => !t.is_locked).length;
+          document.getElementById('kpiLocked').innerText = items.filter((t) => t.is_locked).length;
           (data.items || []).forEach((t) => {{
             if (t.latitude == null || t.longitude == null) return;
             const color = t.is_locked ? '#e74c3c' : '#2ecc71';
@@ -1104,17 +1313,20 @@ def mini_app() -> Response:
               .bindPopup(`${{t.village}} (${{t.availability_status || (t.is_locked ? 'locked' : 'open')}})`);
             territoryMarkers.push(marker);
           }});
+          setResult(data);
         }}
         async function suggestNearest() {{
-          if (!navigator.geolocation) return;
+          if (!navigator.geolocation) {{
+            setResult({{ok: false, error: 'Geolocation not available on this device/browser.'}});
+            return;
+          }}
           navigator.geolocation.getCurrentPosition(async (pos) => {{
             const r = await fetch('/api/territories/nearest', {{
               method: 'POST',
               headers: {{'Content-Type': 'application/json'}},
               body: JSON.stringify({{latitude: pos.coords.latitude, longitude: pos.coords.longitude}})
             }});
-            const data = await r.json();
-            document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+            setResult(await r.json());
           }});
         }}
         async function submitRegistration() {{
@@ -1128,15 +1340,15 @@ def mini_app() -> Response:
             kebele: document.getElementById('kebele').value,
             village: document.getElementById('village').value,
             preferred_territory: document.getElementById('preferred_territory').value,
-            applicant_type: 'sales_installer',
-            experience: true,
-            experience_years: 1,
-            work_type: 'Sales and installation',
-            has_shop: true,
-            can_install: true,
-            id_file_front_url: 'mini-app-placeholder',
-            id_file_back_url: 'mini-app-placeholder',
-            profile_photo_url: null,
+            applicant_type: document.getElementById('applicant_type').value,
+            experience: asBool('experience'),
+            experience_years: Number(document.getElementById('experience_years').value || 0),
+            work_type: document.getElementById('work_type').value,
+            has_shop: asBool('has_shop'),
+            can_install: asBool('can_install'),
+            id_file_front_url: document.getElementById('id_file_front_url').value,
+            id_file_back_url: document.getElementById('id_file_back_url').value,
+            profile_photo_url: document.getElementById('profile_photo_url').value || null,
             picked_latitude: pickedLatLng ? pickedLatLng.lat : null,
             picked_longitude: pickedLatLng ? pickedLatLng.lng : null
           }};
@@ -1145,9 +1357,91 @@ def mini_app() -> Response:
             headers: {{'Content-Type': 'application/json'}},
             body: JSON.stringify(payload)
           }});
-          document.getElementById('result').innerText = JSON.stringify(await res.json(), null, 2);
+          setResult(await res.json());
+        }}
+        async function loadDashboard() {{
+          const uid = document.getElementById('dashboard_user_id').value.trim();
+          if (!uid) return setResult({{ok:false,error:'dashboard_user_id is required'}});
+          const res = await fetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}`);
+          const data = await res.json();
+          if (data.dashboard) {{
+            document.getElementById('upd_full_name').value = data.dashboard.full_name || '';
+            document.getElementById('upd_phone').value = data.dashboard.phone || '';
+            document.getElementById('upd_region').value = data.dashboard.region || '';
+            document.getElementById('upd_territory').value = data.dashboard.preferred_territory || '';
+            if (data.dashboard.application_id) {{
+              document.getElementById('training_application_id').value = data.dashboard.application_id;
+              document.getElementById('perf_application_id').value = data.dashboard.application_id;
+            }}
+          }}
+          setResult(data);
+        }}
+        async function updateProfile() {{
+          const uid = document.getElementById('dashboard_user_id').value.trim();
+          if (!uid) return setResult({{ok:false,error:'dashboard_user_id is required'}});
+          const payload = {{
+            full_name: document.getElementById('upd_full_name').value,
+            phone: document.getElementById('upd_phone').value,
+            region: document.getElementById('upd_region').value,
+            preferred_territory: document.getElementById('upd_territory').value
+          }};
+          const res = await fetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}/profile`, {{
+            method: 'PATCH',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify(payload)
+          }});
+          setResult(await res.json());
+        }}
+        async function markTraining() {{
+          const appId = document.getElementById('training_application_id').value.trim();
+          const moduleKey = document.getElementById('training_module_key').value.trim();
+          if (!appId || !moduleKey) return setResult({{ok:false,error:'application_id and module_key are required'}});
+          const res = await fetch(`/api/agent/training/${{encodeURIComponent(appId)}}`, {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{module_key: moduleKey, completed: asBool('training_completed')}})
+          }});
+          setResult(await res.json());
+        }}
+        async function submitPerformance() {{
+          const rawMetadata = document.getElementById('perf_metadata').value || '{{}}';
+          let metadata = {{}};
+          try {{
+            metadata = JSON.parse(rawMetadata);
+          }} catch (err) {{
+            return setResult({{ok:false,error:'Metadata must be valid JSON'}});
+          }}
+          const payload = {{
+            application_id: document.getElementById('perf_application_id').value,
+            event_type: document.getElementById('perf_event_type').value,
+            event_value: Number(document.getElementById('perf_event_value').value || 0),
+            occurred_at: document.getElementById('perf_occurred_at').value || null,
+            metadata
+          }};
+          const res = await fetch('/api/performance/events', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify(payload)
+          }});
+          setResult(await res.json());
+        }}
+        function drawRankTable(title, items, valueKey) {{
+          if (!items?.length) return `<h4>${{title}}</h4><p class="muted">No data yet.</p>`;
+          const rows = items.map((i, idx) =>
+            `<tr><td>#${{idx + 1}}</td><td>${{i.full_name || 'N/A'}}</td><td>${{i.phone || 'N/A'}}</td><td><span class="pill ok">${{i[valueKey] ?? 0}}</span></td></tr>`
+          ).join('');
+          return `<h4>${{title}}</h4><table><thead><tr><th>Rank</th><th>Name</th><th>Phone</th><th>Total</th></tr></thead><tbody>${{rows}}</tbody></table>`;
+        }}
+        async function loadRankings() {{
+          const res = await fetch('/api/rankings');
+          const data = await res.json();
+          document.getElementById('rankingsContainer').innerHTML =
+            drawRankTable('Top Sales Agents', data.rankings?.top_sales_agents || [], 'total_sales') +
+            drawRankTable('Top Installer Agents', data.rankings?.top_installer_agents || [], 'completed_jobs');
+          setResult(data);
         }}
         loadTerritories();
+        loadRankings();
       </script>
     </body>
     </html>
