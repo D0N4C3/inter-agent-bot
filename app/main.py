@@ -692,9 +692,9 @@ async def _telegram_webhook(update: dict) -> dict:
 
         if text in {"Email Support", "WhatsApp Support", "Call Support"}:
             channel_map = {
-                "Email Support": "Email: agentapply@internethiopia.com",
-                "WhatsApp Support": "WhatsApp: +251XXXXXXXXX",
-                "Call Support": "Phone: +251XXXXXXXXX",
+                "Email Support": "Email: agentapply@interethiopia.com",
+                "WhatsApp Support": "WhatsApp: 0911238865 or 0978111223",
+                "Call Support": "Phone: 0911238865 or 0978111223",
             }
             await send_message(chat_id, f"Support channel:\n{channel_map[text]}")
             return {"ok": True}
