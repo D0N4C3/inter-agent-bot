@@ -56,6 +56,7 @@ from app.services import (
 )
 
 app = Flask(__name__)
+application = app
 logger = logging.getLogger(__name__)
 
 SUPPORTED_LANGUAGES = {"en", "am"}
