@@ -103,3 +103,14 @@ Features:
 ## 5) Supabase SQL
 
 Run `sql/schema.sql` in Supabase SQL editor.
+
+
+## Codebase structure
+
+To keep the project maintainable as features grow, the app now uses a modular layout:
+
+- `app/main.py`: Telegram bot/webhook flow and application bootstrap.
+- `app/web_module.py`: OOP-style `WebModule` class that encapsulates admin + mini-app web routes and auth helpers.
+- `app/templates/admin_dashboard.html`: admin dashboard UI template.
+- `app/templates/mini_app.html`: Telegram mini app UI template.
+

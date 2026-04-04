@@ -1,0 +1,71 @@
+<html><head><style>
+body {
+  font-family: Inter, Arial, sans-serif; background: #f4f7fb; color: #1b2430; margin: 0; padding: 24px;
+}
+.card { background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 8px 20px rgba(27,36,48,.08); }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { border-bottom: 1px solid #e9eef5; padding: 10px; vertical-align: top; text-align: left; }
+th { background: #f8fafe; }
+.uploads { display: flex; gap: 8px; flex-wrap: wrap; }
+.thumb { width: 74px; height: 74px; border-radius: 10px; object-fit: cover; border: 1px solid #d7e0ed; }
+.status-badge { background: #ebf5ff; color: #165dff; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+form { display: flex; gap: 8px; flex-wrap: wrap; }
+input, select, button { padding: 8px; border-radius: 8px; border: 1px solid #d7e0ed; }
+button { background: #165dff; color: #fff; border: none; cursor: pointer; }
+.muted { color: #8a94a3; }
+</style></head><body>
+<div class="card">
+<h2>✨ Agent Applications Dashboard</h2>
+<form method="get" action="/admin">
+  <input type="hidden" name="token" value="{{ token }}" />
+  <input name="region" value="{{ region }}" placeholder="Region" />
+  <input name="applicant_type" value="{{ applicant_type }}" placeholder="Type" />
+  <input name="status" value="{{ status }}" placeholder="Status" />
+  <button type="submit">Filter</button>
+</form>
+<p>
+  <a href="/admin/export.csv?token={{ token }}">Export CSV</a> |
+  <a href="/admin/export.xlsx?token={{ token }}">Export Excel</a>
+</p>
+<table>
+  <tr><th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Tag</th><th>Status</th><th>Potential</th><th>Remarks</th><th>Uploads</th><th>Actions</th></tr>
+  {% for row in apps %}
+  <tr class="app-row">
+    <td>{{ row.app.application_id }}</td>
+    <td>{{ row.app.full_name }}</td>
+    <td>{{ row.app.region }}</td>
+    <td>{{ row.app.applicant_type }}</td>
+    <td>{{ row.app.agent_tag or '' }}</td>
+    <td><span class="status-badge">{{ row.app.status }}</span></td>
+    <td>{{ row.app.performance_potential or '' }}</td>
+    <td>{{ row.app.internal_remarks or '' }}</td>
+    <td>
+      <div class="uploads">
+        {% if row.uploads %}
+          {% for upload in row.uploads %}
+            {% if upload.is_image %}
+              <a class="thumb-link" href="{{ upload.url }}" target="_blank" rel="noopener"><img src="{{ upload.url }}" alt="{{ upload.label }}" class="thumb" /></a>
+            {% else %}
+              <a href="{{ upload.url }}" target="_blank" rel="noopener">{{ upload.label }}</a>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          <span class="muted">No uploads</span>
+        {% endif %}
+      </div>
+    </td>
+    <td>
+      <form method="post" action="/admin/applications/{{ row.app.application_id }}/status?token={{ token }}">
+        <select name="status">{% for s in valid_statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+        <select name="agent_tag">{% for tag in valid_agent_tags %}<option value="{{ tag }}" {% if row.app.agent_tag==tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}</select>
+        <select name="performance_potential">{% for p in valid_performance_levels %}<option value="{{ p }}" {% if row.app.performance_potential==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+        <input name="territory_village" placeholder="territory" value="{{ row.app.preferred_territory }}" />
+        <input name="admin_notes" placeholder="internal notes" value="{{ row.app.admin_notes or '' }}" />
+        <input name="internal_remarks" placeholder="remarks" value="{{ row.app.internal_remarks or '' }}" />
+        <button type="submit">Update</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div></body></html>
