@@ -5,6 +5,10 @@ import mimetypes
 import re
 import secrets
 import asyncio
+import hashlib
+import hmac
+import json
+from urllib.parse import parse_qsl
 from datetime import datetime, timezone
 from html import escape
 
@@ -876,6 +880,39 @@ def _require_admin() -> None:
         abort(401, description="Unauthorized")
 
 
+def _verify_telegram_init_data(init_data: str | None) -> dict | None:
+    if not init_data:
+        return None
+    try:
+        pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+        provided_hash = pairs.pop("hash", None)
+        if not provided_hash:
+            return None
+        data_check = "\n".join(f"{key}={value}" for key, value in sorted(pairs.items()))
+        secret = hmac.new(b"WebAppData", settings.telegram_bot_token.encode("utf-8"), hashlib.sha256).digest()
+        calculated_hash = hmac.new(secret, data_check.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calculated_hash, provided_hash):
+            return None
+        user_raw = pairs.get("user")
+        if not user_raw:
+            return None
+        user = json.loads(user_raw)
+        telegram_user_id = str(user.get("id") or "").strip()
+        if not telegram_user_id:
+            return None
+        return {"telegram_user_id": telegram_user_id, "user": user, "is_admin": is_bot_admin(telegram_user_id)}
+    except Exception:
+        return None
+
+
+def _mini_app_session(required: bool = True) -> dict | None:
+    init_data = request.headers.get("x-telegram-init-data") or request.args.get("tg_init_data")
+    session = _verify_telegram_init_data(init_data)
+    if required and not session:
+        abort(401, description="Telegram mini app authentication failed")
+    return session
+
+
 @app.route("/admin", methods=["GET"])
 def admin_dashboard() -> Response:
     _require_admin()
@@ -1164,12 +1201,13 @@ def mini_app() -> Response:
         <div class="hero">
           <div class="hero-card">
             <h2 style="margin-top:0">⚡ {settings.mini_app_name}</h2>
-            <p class="muted">Premium mini app to operate the full agent funnel: registration, territory intelligence, dashboards, training, performance tracking, and rankings.</p>
+            <p class="muted">Manage your application, territory insights, training, and rankings with a cleaner user experience.</p>
             <div class="kpis">
               <div class="kpi"><b id="kpiTerritories">0</b><span class="muted">Mapped territories</span></div>
               <div class="kpi"><b id="kpiOpen">0</b><span class="muted">Open territories</span></div>
               <div class="kpi"><b id="kpiLocked">0</b><span class="muted">Locked territories</span></div>
             </div>
+            <p class="muted" id="welcomeUser" style="margin-bottom:0"></p>
           </div>
         </div>
         <div class="grid">
@@ -1178,7 +1216,7 @@ def mini_app() -> Response:
             <button class="tab-btn" data-tab="territories">🗺 Territory Intelligence</button>
             <button class="tab-btn" data-tab="agent">👤 Agent Dashboard</button>
             <button class="tab-btn" data-tab="training">🎓 Training Progress</button>
-            <button class="tab-btn" data-tab="performance">📈 Performance Input</button>
+            <button class="tab-btn admin-only" data-tab="performance" style="display:none">📈 Performance Input</button>
             <button class="tab-btn" data-tab="rankings">🏆 Rankings</button>
           </aside>
           <main class="panel">
@@ -1186,8 +1224,7 @@ def mini_app() -> Response:
               <h3 class="section-title">Agent / Installer Application</h3>
               <p class="muted">All candidate data is collected from this form. Fields are mapped to your existing bot schema and API.</p>
               <div class="form-grid">
-                <div><label>Telegram User ID</label><input id="telegram_user_id" /></div>
-                <div><label>Full name</label><input id="full_name" /></div>
+                                <div><label>Full name</label><input id="full_name" /></div>
                 <div><label>Phone</label><input id="phone" placeholder="+2519..." /></div>
                 <div><label>Applicant type</label><select id="applicant_type"><option value="sales_only">Sales Agent</option><option value="installer_only">Installer</option><option value="sales_installer" selected>Both</option></select></div>
                 <div><label>Region</label><input id="region" /></div>
@@ -1223,9 +1260,6 @@ def mini_app() -> Response:
 
             <section id="tab-agent" class="tab">
               <h3 class="section-title">Agent Dashboard Lookup + Profile Update</h3>
-              <div class="form-grid">
-                <div><label>Telegram User ID</label><input id="dashboard_user_id" /></div>
-              </div>
               <button onclick="loadDashboard()">Load Dashboard</button>
               <div class="form-grid">
                 <div><label>Full name</label><input id="upd_full_name" /></div>
@@ -1264,17 +1298,35 @@ def mini_app() -> Response:
               <div id="rankingsContainer"></div>
             </section>
 
-            <h4 style="margin-bottom:8px">API Output</h4>
-            <pre id="result"></pre>
+            <h4 style="margin-bottom:8px">Status</h4>
+            <pre id="result">Loading mini app context...</pre>
           </main>
         </div>
       </div>
+      <script src="https://telegram.org/js/telegram-web-app.js"></script>
       <script>
+        const tg = window.Telegram?.WebApp;
+        const tgInitData = tg?.initData || '';
+        const tgUser = tg?.initDataUnsafe?.user || null;
+        let miniSession = null;
+        if (tg) {{
+          tg.ready();
+          tg.expand();
+        }}
+        async function apiFetch(url, options = {{}}) {{
+          const headers = Object.assign({{}}, options.headers || {{}});
+          if (tgInitData) headers['X-Telegram-Init-Data'] = tgInitData;
+          return fetch(url, Object.assign({{}}, options, {{ headers }}));
+        }}
         function asBool(id) {{
           return document.getElementById(id).value === 'true';
         }}
         function setResult(obj) {{
-          document.getElementById('result').innerText = JSON.stringify(obj, null, 2);
+          if (typeof obj === 'string') {{
+            document.getElementById('result').innerText = obj;
+            return;
+          }}
+          document.getElementById('result').innerText = obj?.error || obj?.message || JSON.stringify(obj, null, 2);
         }}
         document.querySelectorAll('.tab-btn').forEach((btn) => {{
           btn.addEventListener('click', () => {{
@@ -1298,7 +1350,7 @@ def mini_app() -> Response:
             const v = document.getElementById(`filter_${{k}}`)?.value?.trim();
             if (v) qp.set(k, v);
           }});
-          const res = await fetch(`/api/territories/map?${{qp.toString()}}`);
+          const res = await apiFetch(`/api/territories/map?${{qp.toString()}}`);
           const data = await res.json();
           territoryMarkers.forEach(m => m.remove());
           territoryMarkers = [];
@@ -1313,7 +1365,7 @@ def mini_app() -> Response:
               .bindPopup(`${{t.village}} (${{t.availability_status || (t.is_locked ? 'locked' : 'open')}})`);
             territoryMarkers.push(marker);
           }});
-          setResult(data);
+          setResult({{message: `Loaded ${{items.length}} territories.`}});
         }}
         async function suggestNearest() {{
           if (!navigator.geolocation) {{
@@ -1321,17 +1373,17 @@ def mini_app() -> Response:
             return;
           }}
           navigator.geolocation.getCurrentPosition(async (pos) => {{
-            const r = await fetch('/api/territories/nearest', {{
+            const r = await apiFetch('/api/territories/nearest', {{
               method: 'POST',
               headers: {{'Content-Type': 'application/json'}},
               body: JSON.stringify({{latitude: pos.coords.latitude, longitude: pos.coords.longitude}})
             }});
-            setResult(await r.json());
+            const data = await r.json();
+            setResult({{message: `Found ${{(data.items || []).length}} nearby territories.`}});
           }});
         }}
         async function submitRegistration() {{
           const payload = {{
-            telegram_user_id: document.getElementById('telegram_user_id').value,
             full_name: document.getElementById('full_name').value,
             phone: document.getElementById('phone').value,
             region: document.getElementById('region').value,
@@ -1352,17 +1404,18 @@ def mini_app() -> Response:
             picked_latitude: pickedLatLng ? pickedLatLng.lat : null,
             picked_longitude: pickedLatLng ? pickedLatLng.lng : null
           }};
-          const res = await fetch('/api/mini-app/register', {{
+          const res = await apiFetch('/api/mini-app/register', {{
             method: 'POST',
             headers: {{'Content-Type': 'application/json'}},
             body: JSON.stringify(payload)
           }});
-          setResult(await res.json());
+          const data = await res.json();
+          setResult(data.ok ? 'Registration submitted successfully.' : data);
         }}
         async function loadDashboard() {{
-          const uid = document.getElementById('dashboard_user_id').value.trim();
-          if (!uid) return setResult({{ok:false,error:'dashboard_user_id is required'}});
-          const res = await fetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}`);
+          const uid = miniSession?.telegram_user_id;
+          if (!uid) return setResult({{ok:false,error:'Unable to identify Telegram user'}});
+          const res = await apiFetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}`);
           const data = await res.json();
           if (data.dashboard) {{
             document.getElementById('upd_full_name').value = data.dashboard.full_name || '';
@@ -1374,34 +1427,36 @@ def mini_app() -> Response:
               document.getElementById('perf_application_id').value = data.dashboard.application_id;
             }}
           }}
-          setResult(data);
+          setResult(data.ok ? 'Dashboard loaded.' : data);
         }}
         async function updateProfile() {{
-          const uid = document.getElementById('dashboard_user_id').value.trim();
-          if (!uid) return setResult({{ok:false,error:'dashboard_user_id is required'}});
+          const uid = miniSession?.telegram_user_id;
+          if (!uid) return setResult({{ok:false,error:'Unable to identify Telegram user'}});
           const payload = {{
             full_name: document.getElementById('upd_full_name').value,
             phone: document.getElementById('upd_phone').value,
             region: document.getElementById('upd_region').value,
             preferred_territory: document.getElementById('upd_territory').value
           }};
-          const res = await fetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}/profile`, {{
+          const res = await apiFetch(`/api/agent/dashboard/${{encodeURIComponent(uid)}}/profile`, {{
             method: 'PATCH',
             headers: {{'Content-Type': 'application/json'}},
             body: JSON.stringify(payload)
           }});
-          setResult(await res.json());
+          const data = await res.json();
+          setResult(data.ok ? 'Profile updated.' : data);
         }}
         async function markTraining() {{
           const appId = document.getElementById('training_application_id').value.trim();
           const moduleKey = document.getElementById('training_module_key').value.trim();
           if (!appId || !moduleKey) return setResult({{ok:false,error:'application_id and module_key are required'}});
-          const res = await fetch(`/api/agent/training/${{encodeURIComponent(appId)}}`, {{
+          const res = await apiFetch(`/api/agent/training/${{encodeURIComponent(appId)}}`, {{
             method: 'POST',
             headers: {{'Content-Type': 'application/json'}},
             body: JSON.stringify({{module_key: moduleKey, completed: asBool('training_completed')}})
           }});
-          setResult(await res.json());
+          const data = await res.json();
+          setResult(data.ok ? 'Training progress saved.' : data);
         }}
         async function submitPerformance() {{
           const rawMetadata = document.getElementById('perf_metadata').value || '{{}}';
@@ -1418,7 +1473,7 @@ def mini_app() -> Response:
             occurred_at: document.getElementById('perf_occurred_at').value || null,
             metadata
           }};
-          const res = await fetch('/api/performance/events', {{
+          const res = await apiFetch('/api/performance/events', {{
             method: 'POST',
             headers: {{'Content-Type': 'application/json'}},
             body: JSON.stringify(payload)
@@ -1433,15 +1488,31 @@ def mini_app() -> Response:
           return `<h4>${{title}}</h4><table><thead><tr><th>Rank</th><th>Name</th><th>Phone</th><th>Total</th></tr></thead><tbody>${{rows}}</tbody></table>`;
         }}
         async function loadRankings() {{
-          const res = await fetch('/api/rankings');
+          const res = await apiFetch('/api/rankings');
           const data = await res.json();
           document.getElementById('rankingsContainer').innerHTML =
             drawRankTable('Top Sales Agents', data.rankings?.top_sales_agents || [], 'total_sales') +
             drawRankTable('Top Installer Agents', data.rankings?.top_installer_agents || [], 'completed_jobs');
-          setResult(data);
+          setResult('Rankings refreshed.');
         }}
-        loadTerritories();
-        loadRankings();
+        async function initMiniApp() {{
+          const res = await apiFetch('/api/mini-app/session');
+          const data = await res.json();
+          if (!data.ok) {{
+            setResult(data);
+            return;
+          }}
+          miniSession = data.session;
+          const label = miniSession.user?.first_name || tgUser?.first_name || 'User';
+          document.getElementById('welcomeUser').innerText = `Hello, ${{label}}`;
+          if (miniSession.is_admin) {{
+            document.querySelectorAll('.admin-only').forEach((el) => el.style.display = '');
+          }}
+          await loadDashboard();
+          await loadTerritories();
+          await loadRankings();
+        }}
+        initMiniApp();
       </script>
     </body>
     </html>
@@ -1451,9 +1522,10 @@ def mini_app() -> Response:
 
 @app.route("/api/mini-app/register", methods=["POST"])
 def mini_app_register() -> dict:
+    session = _mini_app_session(required=True)
     payload = request.get_json(silent=True) or {}
     required = [
-        "telegram_user_id", "full_name", "phone", "region", "zone", "woreda", "kebele", "village", "preferred_territory",
+        "full_name", "phone", "region", "zone", "woreda", "kebele", "village", "preferred_territory",
     ]
     missing = [field for field in required if not payload.get(field)]
     if missing:
@@ -1469,7 +1541,7 @@ def mini_app_register() -> dict:
 
     score = score_application(payload)
     record = {
-        "telegram_user_id": str(payload["telegram_user_id"]),
+        "telegram_user_id": str(session["telegram_user_id"]),
         "full_name": payload["full_name"],
         "phone": payload["phone"],
         "applicant_type": payload.get("applicant_type", "sales_installer"),
@@ -1524,6 +1596,9 @@ def nearest_territories() -> dict:
 
 @app.route("/api/agent/dashboard/<telegram_user_id>", methods=["GET"])
 def agent_dashboard_api(telegram_user_id: str) -> dict:
+    session = _mini_app_session(required=True)
+    if str(session["telegram_user_id"]) != str(telegram_user_id) and not session["is_admin"]:
+        return {"ok": False, "error": "Forbidden"}, 403
     dashboard = get_agent_dashboard(telegram_user_id)
     if not dashboard:
         return {"ok": False, "error": "Agent not found"}, 404
@@ -1537,6 +1612,9 @@ def agent_dashboard_api(telegram_user_id: str) -> dict:
 
 @app.route("/api/agent/dashboard/<telegram_user_id>/profile", methods=["PATCH"])
 def agent_profile_update_api(telegram_user_id: str) -> dict:
+    session = _mini_app_session(required=True)
+    if str(session["telegram_user_id"]) != str(telegram_user_id) and not session["is_admin"]:
+        return {"ok": False, "error": "Forbidden"}, 403
     payload = request.get_json(silent=True) or {}
     updated = update_agent_profile(telegram_user_id, payload)
     return {"ok": True, "application": updated}
@@ -1544,6 +1622,12 @@ def agent_profile_update_api(telegram_user_id: str) -> dict:
 
 @app.route("/api/agent/training/<application_id>", methods=["POST"])
 def agent_training_progress_api(application_id: str) -> dict:
+    session = _mini_app_session(required=True)
+    app_row = get_application(application_id)
+    if not app_row:
+        return {"ok": False, "error": "Application not found"}, 404
+    if str(app_row.get("telegram_user_id")) != str(session["telegram_user_id"]) and not session["is_admin"]:
+        return {"ok": False, "error": "Forbidden"}, 403
     payload = request.get_json(silent=True) or {}
     module_key = str(payload.get("module_key") or "").strip()
     if not module_key:
@@ -1555,7 +1639,11 @@ def agent_training_progress_api(application_id: str) -> dict:
 
 @app.route("/api/performance/events", methods=["POST"])
 def performance_event_api() -> dict:
-    _require_admin()
+    session = _mini_app_session(required=False)
+    token = request.args.get("token") or request.headers.get("x-admin-token")
+    token_ok = bool(settings.admin_dashboard_token and token == settings.admin_dashboard_token)
+    if not ((session and session.get("is_admin")) or token_ok):
+        abort(401, description="Unauthorized")
     payload = request.get_json(silent=True) or {}
     application_id = str(payload.get("application_id") or "").strip()
     event_type = str(payload.get("event_type") or "").strip()
@@ -1574,3 +1662,9 @@ def performance_event_api() -> dict:
 @app.route("/api/rankings", methods=["GET"])
 def rankings_api() -> dict:
     return {"ok": True, "rankings": get_rankings()}
+
+
+@app.route("/api/mini-app/session", methods=["GET"])
+def mini_app_session_api() -> dict:
+    session = _mini_app_session(required=True)
+    return {"ok": True, "session": session}
