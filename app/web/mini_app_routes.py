@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import uuid
 
 from flask import Blueprint, Response, render_template, request
 
@@ -14,6 +15,7 @@ from app.services import (
     send_notification_email,
     suggest_nearest_territories,
     territory_is_available,
+    upload_telegram_file,
 )
 from app.web.auth import mini_app_session
 
@@ -26,9 +28,42 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
                 "mini_app.html",
                 mini_app_name=settings.mini_app_name,
                 mini_app_primary_color=settings.mini_app_primary_color,
+                google_maps_sdk_key=settings.google_maps_sdk_key,
             ),
             mimetype="text/html",
         )
+
+    @blueprint.post("/api/mini-app/upload")
+    def mini_app_upload() -> dict:
+        mini_app_session(required=True)
+        file = request.files.get("file")
+        if not file:
+            return {"ok": False, "error": "file is required"}, 400
+
+        file_bytes = file.read()
+        if not file_bytes:
+            return {"ok": False, "error": "File is empty"}, 400
+
+        max_size = settings.max_upload_size_mb * 1024 * 1024
+        if len(file_bytes) > max_size:
+            return {"ok": False, "error": f"File too large. Max size is {settings.max_upload_size_mb}MB."}, 400
+
+        content_type = (file.content_type or "").lower()
+        allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
+        if content_type not in allowed_types:
+            return {"ok": False, "error": "Unsupported file format. Please upload JPG, PNG, WEBP, or PDF."}, 400
+
+        ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+        extension = ext or ("pdf" if content_type == "application/pdf" else "jpg")
+        filename = f"{uuid.uuid4().hex}.{extension}"
+        file_url = upload_telegram_file(
+            file_bytes=file_bytes,
+            folder="mini_app_uploads",
+            filename=filename,
+            content_type=content_type,
+            upsert=False,
+        )
+        return {"ok": True, "url": file_url}
 
     @blueprint.post("/api/mini-app/register")
     def mini_app_register() -> dict:
