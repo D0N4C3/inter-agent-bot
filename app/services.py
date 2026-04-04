@@ -32,6 +32,12 @@ VALID_PERFORMANCE_EVENT_TYPES = {
     "training_completed",
 }
 
+VALID_TERRITORY_AVAILABILITY = {
+    "open",
+    "assigned",
+    "blocked",
+}
+
 
 def get_supabase() -> Client:
     client = create_client(
@@ -293,6 +299,129 @@ def list_territories_for_map(
     if woreda:
         query = query.eq("woreda", woreda)
     return query.limit(500).execute().data or []
+
+
+def list_territories_admin(
+    region: str | None = None,
+    zone: str | None = None,
+    woreda: str | None = None,
+    include_locked: bool = True,
+    limit: int = 300,
+) -> list[dict]:
+    client = get_supabase()
+    query = client.table("territories").select("*").order("region").order("zone").order("woreda").order("village")
+    if region:
+        query = query.eq("region", region)
+    if zone:
+        query = query.eq("zone", zone)
+    if woreda:
+        query = query.eq("woreda", woreda)
+    if not include_locked:
+        query = query.eq("is_locked", False)
+    return query.limit(max(1, min(limit, 2000))).execute().data or []
+
+
+def create_territory(
+    region: str,
+    zone: str,
+    woreda: str,
+    kebele: str,
+    village: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    availability_status: str = "open",
+    is_locked: bool = False,
+) -> dict:
+    if availability_status not in VALID_TERRITORY_AVAILABILITY:
+        raise ValueError("Invalid territory availability_status")
+    client = get_supabase()
+    payload = {
+        "region": region.strip(),
+        "zone": zone.strip(),
+        "woreda": woreda.strip(),
+        "kebele": kebele.strip(),
+        "village": village.strip(),
+        "latitude": latitude,
+        "longitude": longitude,
+        "availability_status": availability_status,
+        "is_locked": bool(is_locked),
+    }
+    result = client.table("territories").insert(payload).execute()
+    return result.data[0]
+
+
+def update_territory(territory_id: str, updates: dict) -> dict:
+    safe_updates = {}
+    for key in ("region", "zone", "woreda", "kebele", "village"):
+        if key in updates and updates[key] is not None:
+            safe_updates[key] = str(updates[key]).strip()
+    for key in ("latitude", "longitude", "assigned_application_id"):
+        if key in updates:
+            safe_updates[key] = updates[key]
+    if "is_locked" in updates:
+        safe_updates["is_locked"] = bool(updates["is_locked"])
+    if "availability_status" in updates and updates["availability_status"] is not None:
+        status = str(updates["availability_status"]).strip()
+        if status not in VALID_TERRITORY_AVAILABILITY:
+            raise ValueError("Invalid territory availability_status")
+        safe_updates["availability_status"] = status
+    if not safe_updates:
+        raise ValueError("No valid territory updates")
+    client = get_supabase()
+    result = client.table("territories").update(safe_updates).eq("territory_id", territory_id).execute()
+    if not result.data:
+        raise ValueError("Territory not found")
+    return result.data[0]
+
+
+def delete_territory(territory_id: str) -> None:
+    client = get_supabase()
+    client.table("territories").delete().eq("territory_id", territory_id).execute()
+
+
+def list_bot_admins(limit: int = 250) -> list[dict]:
+    client = get_supabase()
+    result = client.table("bot_admins").select("*").order("created_at", desc=True).limit(max(1, min(limit, 1000))).execute()
+    return result.data or []
+
+
+def remove_bot_admin(telegram_user_id: str) -> None:
+    client = get_supabase()
+    client.table("bot_admins").delete().eq("telegram_user_id", telegram_user_id).execute()
+
+
+def list_application_drafts(limit: int = 250) -> list[dict]:
+    client = get_supabase()
+    result = client.table("application_drafts").select("*").order("updated_at", desc=True).limit(max(1, min(limit, 1000))).execute()
+    return result.data or []
+
+
+def list_performance_events(application_id: str | None = None, limit: int = 300) -> list[dict]:
+    client = get_supabase()
+    query = client.table("agent_performance_events").select("*").order("occurred_at", desc=True)
+    if application_id:
+        query = query.eq("application_id", application_id)
+    result = query.limit(max(1, min(limit, 2000))).execute()
+    return result.data or []
+
+
+def delete_performance_event(event_id: str) -> None:
+    client = get_supabase()
+    client.table("agent_performance_events").delete().eq("event_id", event_id).execute()
+
+
+def list_training_progress(application_id: str | None = None, limit: int = 300) -> list[dict]:
+    client = get_supabase()
+    query = client.table("agent_training_progress").select("*").order("updated_at", desc=True)
+    if application_id:
+        query = query.eq("application_id", application_id)
+    result = query.limit(max(1, min(limit, 2000))).execute()
+    return result.data or []
+
+
+def delete_training_progress(progress_id: str) -> None:
+    client = get_supabase()
+    client.table("agent_training_progress").delete().eq("progress_id", progress_id).execute()
 
 
 def territory_is_available(
