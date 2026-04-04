@@ -90,92 +90,85 @@ def trf(user_id: int, key: str, **kwargs) -> str:
 def language_selection_pending(user_id: int) -> bool:
     return sessions.get(user_id, {}).get("awaiting_language", False)
 
-APPLICANT_TYPE_BY_BUTTON = {
-    "Register as Sales Agent": "sales_only",
-    "Register as Installer": "installer_only",
-    "Register as Both": "sales_installer",
-}
-
 QUESTION_FLOW = [
-    ("full_name", "Please enter your full name."),
-    ("phone", "Please enter your mobile number (Ethiopian format, e.g. +2519XXXXXXXX)."),
-    ("region", "Region?"),
-    ("zone", "Zone?"),
-    ("woreda", "Woreda?"),
-    ("kebele", "Kebele?"),
-    ("village", "Town / Village?"),
-    ("experience", "Do you have experience? (Yes/No)"),
-    ("experience_years", "If yes, how many years? If no, type 0."),
-    ("work_type", "What type of work do you do?"),
-    ("has_shop", "Do you have a shop or business? (Yes/No)"),
-    ("can_install", "Can you install solar systems? (Yes/No)"),
-    ("id_front", "Please upload your National ID front image/document."),
-    ("id_back", "Please upload your National ID back image/document."),
-    ("profile_photo", "Please upload profile photo (optional). Type skip to continue."),
-    ("preferred_territory", "Select or type your preferred territory (same town/village or nearby area)."),
-    ("terms", f"{settings.terms_text}\n\nReply with: I Agree or Cancel"),
+    ("full_name", "prompt_full_name"),
+    ("phone", "prompt_phone"),
+    ("region", "prompt_region"),
+    ("zone", "prompt_zone"),
+    ("woreda", "prompt_woreda"),
+    ("kebele", "prompt_kebele"),
+    ("village", "prompt_village"),
+    ("experience", "prompt_experience"),
+    ("experience_years", "prompt_experience_years"),
+    ("work_type", "prompt_work_type"),
+    ("has_shop", "prompt_has_shop"),
+    ("can_install", "prompt_can_install"),
+    ("id_front", "prompt_id_front"),
+    ("id_back", "prompt_id_back"),
+    ("profile_photo", "prompt_profile_photo"),
+    ("preferred_territory", "prompt_preferred_territory"),
+    ("terms", "prompt_terms"),
 ]
 
 sessions: dict[int, dict] = {}
 admin_sessions: dict[int, dict] = {}
 
-ADMIN_MENU_KEYBOARD = [
-    ["View Recent Applications", "Filter Applications"],
-    ["Update Application Status", "Add Admin User"],
-    ["Admin Dashboard Link", "Back to Main Menu"],
-]
-
 VALID_PERFORMANCE_LEVELS = {"High", "Medium", "Low"}
+
+
+def localized_values(key: str) -> set[str]:
+    return {I18N.get(lang, {}).get(key, key) for lang in SUPPORTED_LANGUAGES}
 
 
 def start_keyboard_for_user(user_id: int) -> list[list[str]]:
     keyboard = [
-        ["Register as Sales Agent"],
-        ["Register as Installer"],
-        ["Register as Both"],
-        ["Check Territory Availability"],
-        ["Check Application Status"],
-        ["Contact Support"],
+        [tr(user_id, "btn_register_sales")],
+        [tr(user_id, "btn_register_installer")],
+        [tr(user_id, "btn_register_both")],
+        [tr(user_id, "btn_check_territory")],
+        [tr(user_id, "btn_check_status")],
+        [tr(user_id, "btn_contact_support")],
     ]
     if is_bot_admin(str(user_id)):
-        keyboard.insert(0, ["Admin Management"])
+        keyboard.insert(0, [tr(user_id, "btn_admin_management")])
     return keyboard
 
 
-def support_keyboard() -> list[list[str]]:
+def support_keyboard(user_id: int) -> list[list[str]]:
     return [
-        ["Email Support", "WhatsApp Support"],
-        ["Call Support"],
+        [tr(user_id, "btn_email_support"), tr(user_id, "btn_whatsapp_support")],
+        [tr(user_id, "btn_call_support")],
     ]
 
 
-def admin_menu_text() -> str:
-    return (
-        "Admin management menu:\n"
-        "- View Recent Applications\n"
-        "- Filter Applications\n"
-        "- Update Application Status\n"
-        "- Add Admin User\n"
-        "- Admin Dashboard Link"
-    )
+def admin_menu_text(user_id: int) -> str:
+    return tr(user_id, "admin_menu_text")
+
+
+def admin_menu_keyboard(user_id: int) -> list[list[str]]:
+    return [
+        [tr(user_id, "btn_view_recent_applications"), tr(user_id, "btn_filter_applications")],
+        [tr(user_id, "btn_update_application_status"), tr(user_id, "btn_add_admin_user")],
+        [tr(user_id, "btn_admin_dashboard_link"), tr(user_id, "btn_back_main_menu")],
+    ]
 
 
 async def show_admin_menu(chat_id: int, user_id: int) -> None:
     if not is_bot_admin(str(user_id)):
-        await send_message(chat_id, "Only bot admins can access admin management.")
+        await send_message(chat_id, tr(user_id, "admin_only_management"))
         return
-    await send_message(chat_id, admin_menu_text(), keyboard=ADMIN_MENU_KEYBOARD)
+    await send_message(chat_id, admin_menu_text(user_id), keyboard=admin_menu_keyboard(user_id))
 
 
-def _format_application_summary(app_row: dict) -> str:
+def _format_application_summary(app_row: dict, user_id: int) -> str:
     return (
-        f"ID: {app_row['application_id']}\n"
-        f"Name: {app_row['full_name']}\n"
-        f"Type: {app_row['applicant_type']}\n"
-        f"Status: {app_row['status']}\n"
-        f"Region: {app_row['region']}\n"
-        f"Territory: {app_row['preferred_territory']}\n"
-        f"Score: {app_row.get('qualification_score', 'N/A')} ({app_row.get('qualification_flag', 'N/A')})"
+        f"{tr(user_id, 'field_id')}: {app_row['application_id']}\n"
+        f"{tr(user_id, 'field_name')}: {app_row['full_name']}\n"
+        f"{tr(user_id, 'field_type')}: {app_row['applicant_type']}\n"
+        f"{tr(user_id, 'field_status')}: {app_row['status']}\n"
+        f"{tr(user_id, 'field_region')}: {app_row['region']}\n"
+        f"{tr(user_id, 'field_territory')}: {app_row['preferred_territory']}\n"
+        f"{tr(user_id, 'field_score')}: {app_row.get('qualification_score', 'N/A')} ({app_row.get('qualification_flag', 'N/A')})"
     )
 
 
@@ -185,23 +178,23 @@ def _is_image_url(url: str | None) -> bool:
     return url.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp"))
 
 
-async def send_application_preview(chat_id: int, app_row: dict) -> None:
+async def send_application_preview(chat_id: int, app_row: dict, user_id: int) -> None:
     summary = (
-        "🧾 Application Snapshot\n"
-        f"ID: {app_row['application_id']}\n"
-        f"👤 Name: {app_row['full_name']}\n"
-        f"🧭 Type: {app_row['applicant_type']}\n"
-        f"🔖 Status: {app_row['status']}\n"
-        f"📍 Region: {app_row['region']}\n"
-        f"🗺️ Territory: {app_row['preferred_territory']}\n"
-        f"📊 Score: {app_row.get('qualification_score', 'N/A')} ({app_row.get('qualification_flag', 'N/A')})"
+        f"🧾 {tr(user_id, 'application_snapshot')}\n"
+        f"{tr(user_id, 'field_id')}: {app_row['application_id']}\n"
+        f"👤 {tr(user_id, 'field_name')}: {app_row['full_name']}\n"
+        f"🧭 {tr(user_id, 'field_type')}: {app_row['applicant_type']}\n"
+        f"🔖 {tr(user_id, 'field_status')}: {app_row['status']}\n"
+        f"📍 {tr(user_id, 'field_region')}: {app_row['region']}\n"
+        f"🗺️ {tr(user_id, 'field_territory')}: {app_row['preferred_territory']}\n"
+        f"📊 {tr(user_id, 'field_score')}: {app_row.get('qualification_score', 'N/A')} ({app_row.get('qualification_flag', 'N/A')})"
     )
     await send_message(chat_id, summary)
 
     uploads = [
-        ("ID Front", app_row.get("id_file_front_url")),
-        ("ID Back", app_row.get("id_file_back_url")),
-        ("Profile", app_row.get("profile_photo_url")),
+        (tr(user_id, "upload_id_front"), app_row.get("id_file_front_url")),
+        (tr(user_id, "upload_id_back"), app_row.get("id_file_back_url")),
+        (tr(user_id, "upload_profile"), app_row.get("profile_photo_url")),
     ]
     for label, url in uploads:
         if not url:
@@ -297,7 +290,8 @@ async def ask_next(chat_id: int, user_id: int) -> None:
     if index >= len(QUESTION_FLOW):
         await finalize_application(chat_id, user_id)
         return
-    field, prompt = QUESTION_FLOW[index]
+    field, prompt_key = QUESTION_FLOW[index]
+    prompt = f"{settings.terms_text}\n\n{tr(user_id, 'prompt_terms_reply')}" if field == "terms" else tr(user_id, prompt_key)
     if field in {"experience", "has_shop", "can_install"}:
         await send_message(chat_id, prompt, keyboard=yes_no_keyboard(user_id))
         return
@@ -397,7 +391,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
     field, _ = QUESTION_FLOW[session["step_index"]]
 
     if field in {"id_front", "id_back", "profile_photo"}:
-        if field == "profile_photo" and text and text.strip().lower() == "skip":
+        if field == "profile_photo" and text and text.strip().lower() in {"skip", "ዝለል"}:
             session["answers"]["profile_photo_url"] = None
             session["step_index"] += 1
             await ask_next(chat_id, user_id)
@@ -481,11 +475,11 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             return
         session["answers"][field] = int(value)
     elif field == "terms":
-        if value.lower() == "cancel":
+        if value.lower() in {"cancel", "ሰርዝ"}:
             sessions.pop(user_id, None)
             await send_message(chat_id, tr(user_id, "application_cancelled"))
             return
-        if value.lower() != "i agree":
+        if value.lower() not in {"i agree", "እስማማለሁ"}:
             await send_message(chat_id, tr(user_id, "terms_required"))
             return
         session["answers"]["terms_accepted"] = True
@@ -511,44 +505,44 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
     if not session:
         return False
     if text is None:
-        await send_message(chat_id, "Please provide text input for the admin action.")
+        await send_message(chat_id, tr(user_id, "admin_text_input_required"))
         return True
 
     state = session.get("state")
     value = text.strip()
 
     if state == "await_filter":
-        if value.lower() == "cancel":
+        if value.lower() in {"cancel", "ሰርዝ"}:
             admin_sessions.pop(user_id, None)
             await show_admin_menu(chat_id, user_id)
             return True
 
         parts = [part.strip() for part in value.split("|")]
         if len(parts) != 3:
-            await send_message(chat_id, "Use format: region|applicant_type|status, or type Cancel.")
+            await send_message(chat_id, tr(user_id, "admin_filter_format"))
             return True
 
         region, applicant_type, status = [part or None for part in parts]
         apps = get_applications(region=region, applicant_type=applicant_type, status=status)
         if not apps:
-            await send_message(chat_id, "No applications matched your filter.")
+            await send_message(chat_id, tr(user_id, "no_applications_match_filter"))
         else:
-            await send_message(chat_id, f"Top matches: {len(apps)} (showing up to 5 with media previews).")
+            await send_message(chat_id, trf(user_id, "top_matches_found", count=len(apps)))
             for item in apps[:5]:
-                await send_application_preview(chat_id, item)
+                await send_application_preview(chat_id, item, user_id)
         admin_sessions.pop(user_id, None)
         await show_admin_menu(chat_id, user_id)
         return True
 
     if state == "await_add_admin":
         if not value.isdigit():
-            await send_message(chat_id, "Please enter a numeric telegram user id, or Cancel.")
+            await send_message(chat_id, tr(user_id, "enter_numeric_telegram_id"))
             return True
         created, _ = add_bot_admin(value, created_by=str(user_id))
         if created:
-            await send_message(chat_id, f"User {value} is now a bot admin.")
+            await send_message(chat_id, trf(user_id, "user_now_admin", user_id=value))
         else:
-            await send_message(chat_id, f"User {value} is already a bot admin.")
+            await send_message(chat_id, trf(user_id, "user_already_admin", user_id=value))
         admin_sessions.pop(user_id, None)
         await show_admin_menu(chat_id, user_id)
         return True
@@ -556,20 +550,18 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
     if state == "await_application_for_update":
         app_row = get_application(value)
         if not app_row:
-            await send_message(chat_id, "Application ID not found. Try again or type Cancel.")
+            await send_message(chat_id, tr(user_id, "application_id_not_found"))
             return True
         session["application_id"] = value
         session["state"] = "await_status_update"
         await send_message(
             chat_id,
-            "Reply using:\n"
-            "<Status>|<Territory Village or blank>|<Admin note>|<Agent Tag>|<Performance Potential>|<Internal Remarks>\n"
-            "Example: Approved|Bole 05|Verified docs|Hybrid|High|Fast learner",
+            tr(user_id, "reply_status_update_format"),
         )
         return True
 
     if state == "await_status_update":
-        if value.lower() == "cancel":
+        if value.lower() in {"cancel", "ሰርዝ"}:
             admin_sessions.pop(user_id, None)
             await show_admin_menu(chat_id, user_id)
             return True
@@ -577,7 +569,7 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
         if len(parts) != 6:
             await send_message(
                 chat_id,
-                "Use format: <Status>|<Territory>|<Admin Note>|<Agent Tag>|<Performance Potential>|<Internal Remarks> or Cancel.",
+                tr(user_id, "status_update_format_hint"),
             )
             return True
         status, territory_village, admin_notes, agent_tag, performance_potential, internal_remarks = parts
@@ -593,12 +585,12 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
                 internal_remarks=internal_remarks or None,
             )
         except ValueError as exc:
-            await send_message(chat_id, f"Failed to update: {exc}")
+            await send_message(chat_id, trf(user_id, "failed_to_update", error=str(exc)))
             return True
         if old_application.get("status") != "Approved" and updated.get("status") == "Approved":
             send_post_approval_onboarding(updated)
 
-        await send_message(chat_id, f"Application updated.\n\n{_format_application_summary(updated)}")
+        await send_message(chat_id, f"{tr(user_id, 'application_updated')}\n\n{_format_application_summary(updated, user_id)}")
         admin_sessions.pop(user_id, None)
         await show_admin_menu(chat_id, user_id)
         return True
@@ -650,7 +642,7 @@ async def _remind_incomplete_applications() -> dict:
         sessions[user_id]["language"] = draft.get("language") or "en"
         await send_message(
             user_id,
-            f"{tr(user_id, 'resume_prompt')}\n{tr(user_id, 'timeline')}\nSend /register to continue.",
+            f"{tr(user_id, 'resume_prompt')}\n{tr(user_id, 'timeline')}\n{tr(user_id, 'send_register_continue')}",
         )
         mark_draft_reminder_sent(str(user_id))
         sent += 1
@@ -690,55 +682,55 @@ async def _telegram_webhook(update: dict) -> dict:
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return {"ok": True}
 
-        if text in {"/help", "/contact", "Contact Support"}:
-            await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard())
+        if text in {"/help", "/contact", tr(user_id, "btn_contact_support")}:
+            await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard(user_id))
             return {"ok": True}
 
-        if text in {"Email Support", "WhatsApp Support", "Call Support"}:
+        if text in {tr(user_id, "btn_email_support"), tr(user_id, "btn_whatsapp_support"), tr(user_id, "btn_call_support")}:
             channel_map = {
-                "Email Support": tr(user_id, "support_email"),
-                "WhatsApp Support": tr(user_id, "support_whatsapp"),
-                "Call Support": tr(user_id, "support_call"),
+                tr(user_id, "btn_email_support"): tr(user_id, "support_email"),
+                tr(user_id, "btn_whatsapp_support"): tr(user_id, "support_whatsapp"),
+                tr(user_id, "btn_call_support"): tr(user_id, "support_call"),
             }
-            await send_message(chat_id, f"Support channel:\n{channel_map[text]}")
+            await send_message(chat_id, trf(user_id, "support_channel", channel=channel_map[text]))
             return {"ok": True}
 
         if text == "/send":
             total_admins = count_admins()
             if total_admins == 0:
                 add_bot_admin(str(user_id), created_by=str(user_id))
-                await send_message(chat_id, "You are now the first bot admin.")
+                await send_message(chat_id, tr(user_id, "first_admin_assigned"))
                 return {"ok": True}
 
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can use /send.")
+                await send_message(chat_id, tr(user_id, "admin_only_send"))
                 return {"ok": True}
 
             await send_message(
                 chat_id,
-                "Admin command is active. To assign another admin, use:\n/addadmin <telegram_user_id>",
+                tr(user_id, "admin_command_active"),
             )
             return {"ok": True}
 
         if text and text.startswith("/addadmin"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can assign admins.")
+                await send_message(chat_id, tr(user_id, "admin_only_assign_admins"))
                 return {"ok": True}
 
             parts = text.split(maxsplit=1)
             if len(parts) != 2 or not parts[1].strip().isdigit():
-                await send_message(chat_id, "Usage: /addadmin <telegram_user_id>")
+                await send_message(chat_id, tr(user_id, "usage_addadmin"))
                 return {"ok": True}
 
             target_user_id = parts[1].strip()
             created, _ = add_bot_admin(target_user_id, created_by=str(user_id))
             if created:
-                await send_message(chat_id, f"User {target_user_id} is now a bot admin.")
+                await send_message(chat_id, trf(user_id, "user_now_admin", user_id=target_user_id))
             else:
-                await send_message(chat_id, f"User {target_user_id} is already a bot admin.")
+                await send_message(chat_id, trf(user_id, "user_already_admin", user_id=target_user_id))
             return {"ok": True}
 
-        if text and (text.startswith("/status") or text == "Check Application Status"):
+        if text and (text.startswith("/status") or text == tr(user_id, "btn_check_status")):
             parts = text.split(maxsplit=1)
             status = None
             if len(parts) == 2:
@@ -752,8 +744,8 @@ async def _telegram_webhook(update: dict) -> dict:
                 await send_message(chat_id, tr(user_id, "status_not_found"))
             return {"ok": True}
 
-        if text in {"/territory", "Check Territory Availability"}:
-            await send_message(chat_id, "Send /territory <TownOrVillage> to check if an area is reserved.")
+        if text in {"/territory", tr(user_id, "btn_check_territory")}:
+            await send_message(chat_id, tr(user_id, "territory_help"))
             return {"ok": True}
 
         if text and text.startswith("/territory "):
@@ -770,63 +762,60 @@ async def _telegram_webhook(update: dict) -> dict:
                 await send_message(chat_id, tr(user_id, "territory_unavailable"))
             return {"ok": True}
 
-        if text in {"/admin", "Admin Management", "/adminmenu"}:
+        if text in {"/admin", tr(user_id, "btn_admin_management"), "/adminmenu"}:
             await show_admin_menu(chat_id, user_id)
             return {"ok": True}
 
-        if text == "Back to Main Menu":
-            await send_message(chat_id, "Back to main menu.", keyboard=start_keyboard_for_user(user_id))
+        if text == tr(user_id, "btn_back_main_menu"):
+            await send_message(chat_id, tr(user_id, "back_main_menu"), keyboard=start_keyboard_for_user(user_id))
             admin_sessions.pop(user_id, None)
             return {"ok": True}
 
-        if text == "Admin Dashboard Link":
+        if text == tr(user_id, "btn_admin_dashboard_link"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can access admin features.")
+                await send_message(chat_id, tr(user_id, "admin_only_features"))
                 return {"ok": True}
             dashboard_url = "/admin"
             if settings.admin_dashboard_token:
                 dashboard_url = f"/admin?token={settings.admin_dashboard_token}"
-            await send_message(chat_id, f"Open admin dashboard:\n{dashboard_url}")
+            await send_message(chat_id, trf(user_id, "open_admin_dashboard", dashboard_url=dashboard_url))
             return {"ok": True}
 
-        if text == "View Recent Applications":
+        if text == tr(user_id, "btn_view_recent_applications"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can access admin features.")
+                await send_message(chat_id, tr(user_id, "admin_only_features"))
                 return {"ok": True}
             apps = get_applications()[:5]
             if not apps:
-                await send_message(chat_id, "No applications yet.")
+                await send_message(chat_id, tr(user_id, "no_applications_yet"))
                 return {"ok": True}
-            await send_message(chat_id, "Recent applications (premium preview mode):")
+            await send_message(chat_id, tr(user_id, "recent_applications_preview"))
             for item in apps:
-                await send_application_preview(chat_id, item)
+                await send_application_preview(chat_id, item, user_id)
             return {"ok": True}
 
-        if text == "Filter Applications":
+        if text == tr(user_id, "btn_filter_applications"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can access admin features.")
+                await send_message(chat_id, tr(user_id, "admin_only_features"))
                 return {"ok": True}
             admin_sessions[user_id] = {"state": "await_filter"}
-            await send_message(
-                chat_id,
-                "Send filters in format:\nregion|applicant_type|status\nUse blanks to skip.\nExample: Addis Ababa||Under Review\nType Cancel to stop.",
-            )
+            await send_message(chat_id, tr(user_id, "filter_instructions"))
             return {"ok": True}
 
-        if text == "Update Application Status":
+        if text == tr(user_id, "btn_update_application_status"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can access admin features.")
+                await send_message(chat_id, tr(user_id, "admin_only_features"))
                 return {"ok": True}
             admin_sessions[user_id] = {"state": "await_application_for_update"}
-            await send_message(chat_id, "Send the application ID you want to update, or type Cancel.")
+            await send_message(chat_id, tr(user_id, "send_application_id_to_update"))
             return {"ok": True}
 
-        if text == "Add Admin User":
+        if text == tr(user_id, "btn_add_admin_user"):
             if not is_bot_admin(str(user_id)):
-                await send_message(chat_id, "Only bot admins can access admin features.")
+                await send_message(chat_id, tr(user_id, "admin_only_features"))
                 return {"ok": True}
             admin_sessions[user_id] = {"state": "await_add_admin"}
-            await send_message(chat_id, "Send the telegram user ID to grant admin access, or type Cancel.")
+            await send_message(chat_id, tr(user_id, "send_telegram_user_id_for_admin"))
             return {"ok": True}
 
         if text == "/register":
@@ -839,7 +828,7 @@ async def _telegram_webhook(update: dict) -> dict:
             await send_message(
                 chat_id,
                 tr(user_id, "register_choose_type"),
-                keyboard=[["Register as Sales Agent"], ["Register as Installer"], ["Register as Both"]],
+                keyboard=[[tr(user_id, "btn_register_sales")], [tr(user_id, "btn_register_installer")], [tr(user_id, "btn_register_both")]],
             )
             return {"ok": True}
 
@@ -853,8 +842,13 @@ async def _telegram_webhook(update: dict) -> dict:
                 await start_registration(chat_id, user_id, applicant_type, force_new=True)
             return {"ok": True}
 
-        if text in APPLICANT_TYPE_BY_BUTTON:
-            await start_registration(chat_id, user_id, APPLICANT_TYPE_BY_BUTTON[text])
+        applicant_type_by_button = {
+            tr(user_id, "btn_register_sales"): "sales_only",
+            tr(user_id, "btn_register_installer"): "installer_only",
+            tr(user_id, "btn_register_both"): "sales_installer",
+        }
+        if text in applicant_type_by_button:
+            await start_registration(chat_id, user_id, applicant_type_by_button[text])
             return {"ok": True}
 
         if user_id in admin_sessions:

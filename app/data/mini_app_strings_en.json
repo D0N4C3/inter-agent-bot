@@ -121,5 +121,9 @@
   "national_id_front_label": "National ID — Front",
   "national_id_back_label": "National ID — Back",
   "profile_photo_optional_label": "Profile photo (optional)",
-  "upload_files_hint": "Upload files directly from your device."
+  "upload_files_hint": "Upload files directly from your device.",
+  "update_profile": "Update Profile",
+  "save_profile": "Save Profile",
+  "preferred_territory_label": "Preferred territory",
+  "rankings_sub": "Top performing agents by sales and installations."
 }
