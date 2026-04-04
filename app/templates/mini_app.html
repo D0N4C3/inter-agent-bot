@@ -102,9 +102,18 @@
         <div class="card-head"><span class="card-head-icon">📍</span>Location Details</div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>Region</label><input id="region" placeholder="e.g. Addis Ababa" /></div>
-            <div class="field"><label>Zone</label><input id="zone" placeholder="Zone name" /></div>
-            <div class="field"><label>Woreda</label><input id="woreda" placeholder="Woreda name" /></div>
+            <div class="field">
+              <label>Region</label>
+              <select id="region"><option value="">Select region</option></select>
+            </div>
+            <div class="field">
+              <label>Zone</label>
+              <select id="zone"><option value="">Select zone</option></select>
+            </div>
+            <div class="field">
+              <label>Woreda</label>
+              <select id="woreda"><option value="">Select woreda</option></select>
+            </div>
             <div class="field"><label>Kebele</label><input id="kebele" placeholder="Kebele name" /></div>
             <div class="field"><label>Town / Village</label><input id="village" placeholder="Village name" /></div>
             <div class="field"><label>Preferred territory</label><input id="preferred_territory" placeholder="Same or nearby area" /></div>
@@ -169,9 +178,9 @@
         <div class="card-head"><span class="card-head-icon">🔍</span>Filter Territories</div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>Region</label><input id="filter_region" placeholder="All regions" /></div>
-            <div class="field"><label>Zone</label><input id="filter_zone" placeholder="All zones" /></div>
-            <div class="field"><label>Woreda</label><input id="filter_woreda" placeholder="All woredas" /></div>
+            <div class="field"><label>Region</label><select id="filter_region"><option value="">All regions</option></select></div>
+            <div class="field"><label>Zone</label><select id="filter_zone"><option value="">All zones</option></select></div>
+            <div class="field"><label>Woreda</label><select id="filter_woreda"><option value="">All woredas</option></select></div>
           </div>
           <div style="display:flex;gap:10px;margin-top:12px;">
             <button class="btn btn-primary" style="flex:1" onclick="handleLoadTerritories(this)">Refresh Map</button>
@@ -408,6 +417,8 @@
   let infoWindow = null;
   let territoryMarkers = [];
   let pickedLatLng = null;
+  let locationRows = [];
+  let nearestMarkers = [];
 
   function initMap() {
     if (!window.google?.maps) {
@@ -491,14 +502,93 @@
   async function suggestNearest() {
     if (!navigator.geolocation) { setResult({ok:false, error:'Geolocation not available.'}); return; }
     navigator.geolocation.getCurrentPosition(async pos => {
-      const r = await apiFetch('/api/territories/nearest', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({latitude: pos.coords.latitude, longitude: pos.coords.longitude})
-      });
-      const data = await r.json();
-      setResult({message:`Found ${(data.items || []).length} nearby territories.`});
-    });
+      try {
+        const userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const r = await apiFetch('/api/territories/nearest', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({latitude: userLoc.lat, longitude: userLoc.lng})
+        });
+        const data = await r.json();
+        if (!r.ok || !data.ok) {
+          setResult(data?.error || 'Unable to load nearest territories.');
+          return;
+        }
+        if (!map) {
+          setResult({message:`Found ${(data.items || []).length} nearby territories.`});
+          return;
+        }
+        nearestMarkers.forEach(m => m.setMap(null));
+        nearestMarkers = [];
+        const nearby = data.items || [];
+        if (!nearby.length) {
+          map.setCenter(userLoc);
+          map.setZoom(11);
+          setResult({message:'No nearby open territories found.'});
+          return;
+        }
+        map.setCenter(userLoc);
+        map.setZoom(10);
+        nearby.forEach((item, idx) => {
+          if (item.latitude == null || item.longitude == null) return;
+          const marker = new google.maps.Marker({
+            map,
+            position: { lat: Number(item.latitude), lng: Number(item.longitude) },
+            title: item.village || 'Nearby territory',
+            label: `${idx + 1}`,
+          });
+          marker.addListener('click', () => {
+            infoWindow.setContent(`<strong>${item.village || 'Territory'}</strong><br>${item.distance_km ?? '?'} km away`);
+            infoWindow.open({ anchor: marker, map });
+          });
+          nearestMarkers.push(marker);
+        });
+        pickedLatLng = userLoc;
+        setResult({message:`Found ${nearby.length} nearby territories. Map centered to your location.`});
+      } catch (e) {
+        setResult({ok:false, error:e.message || 'Failed to find nearby territories.'});
+      }
+    }, err => {
+      setResult({ok:false, error:`Unable to read GPS location: ${err.message}`});
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+  }
+
+  function setSelectOptions(selectId, values, placeholder) {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+    const current = el.value;
+    el.innerHTML = `<option value="">${placeholder}</option>` +
+      values.map(v => `<option value="${v}">${v}</option>`).join('');
+    if (current && values.includes(current)) {
+      el.value = current;
+    }
+  }
+
+  function getUniqueValues(field, filters = {}) {
+    const values = locationRows
+      .filter(row => Object.entries(filters).every(([k, v]) => !v || row[k] === v))
+      .map(row => row[field])
+      .filter(Boolean);
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }
+
+  function refreshLocationSelects() {
+    const reg = document.getElementById('region')?.value || '';
+    const zon = document.getElementById('zone')?.value || '';
+    setSelectOptions('zone', getUniqueValues('zone', { region: reg }), 'Select zone');
+    setSelectOptions('woreda', getUniqueValues('woreda', { region: reg, zone: zon }), 'Select woreda');
+  }
+
+  async function loadLocationOptions() {
+    const res = await apiFetch('/api/locations/options');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed to load location options');
+    locationRows = data.options?.rows || [];
+    setSelectOptions('region', data.options?.regions || [], 'Select region');
+    setSelectOptions('filter_region', data.options?.regions || [], 'All regions');
+    setSelectOptions('filter_zone', data.options?.zones || [], 'All zones');
+    setSelectOptions('filter_woreda', data.options?.woredas || [], 'All woredas');
+    refreshLocationSelects();
   }
 
   // ── Registration ──────────────────────────────────
@@ -723,6 +813,20 @@
       if (miniSession.is_admin) {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
       }
+      await loadLocationOptions();
+      document.getElementById('region')?.addEventListener('change', refreshLocationSelects);
+      document.getElementById('zone')?.addEventListener('change', refreshLocationSelects);
+      document.getElementById('filter_region')?.addEventListener('change', () => {
+        const region = document.getElementById('filter_region').value;
+        setSelectOptions('filter_zone', getUniqueValues('zone', { region }), 'All zones');
+        const zone = document.getElementById('filter_zone').value;
+        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), 'All woredas');
+      });
+      document.getElementById('filter_zone')?.addEventListener('change', () => {
+        const region = document.getElementById('filter_region').value;
+        const zone = document.getElementById('filter_zone').value;
+        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), 'All woredas');
+      });
       await loadDashboard();
       if (map) await loadTerritories();
       await loadRankings();

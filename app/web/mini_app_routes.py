@@ -9,6 +9,7 @@ from app.config import settings
 from app.scoring import score_application
 from app.services import (
     default_agent_tag,
+    list_location_options,
     list_territories_for_map,
     save_application,
     send_admin_telegram_alert,
@@ -124,6 +125,10 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
             woreda=request.args.get("woreda"),
         )
         return {"ok": True, "items": items}
+
+    @blueprint.get("/api/locations/options")
+    def location_options() -> dict:
+        return {"ok": True, "options": list_location_options()}
 
     @blueprint.post("/api/territories/nearest")
     def nearest_territories() -> dict:

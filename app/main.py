@@ -51,6 +51,7 @@ from app.services import (
     VALID_STATUSES,
     create_performance_event,
     list_open_territories,
+    list_woreda_regions,
 )
 
 app = Flask(__name__)
@@ -264,6 +265,21 @@ def yes_no_keyboard(user_id: int) -> list[list[str]]:
     return YES_NO_KEYBOARD_AM if lang == "am" else YES_NO_KEYBOARD
 
 
+def _location_keyboard(field: str, answers: dict) -> list[list[str]] | None:
+    rows = list_woreda_regions(region=answers.get("region"), zone=answers.get("zone"))
+    if field == "region":
+        values = sorted({row.get("region") for row in rows if row.get("region")})
+    elif field == "zone":
+        values = sorted({row.get("zone") for row in rows if row.get("zone")})
+    elif field == "woreda":
+        values = sorted({row.get("woreda") for row in rows if row.get("woreda")})
+    else:
+        values = []
+    if not values:
+        return None
+    return [[value] for value in values[:60]]
+
+
 def phone_is_valid(phone: str) -> bool:
     return bool(re.fullmatch(r"(\+251|0)?9\d{8}", phone.strip()))
 
@@ -280,9 +296,15 @@ async def ask_next(chat_id: int, user_id: int) -> None:
         return
 
     if field == "region":
-        keyboard = [[region] for region in ETHIOPIA_REGIONS]
+        keyboard = _location_keyboard("region", session["answers"]) or [[region] for region in ETHIOPIA_REGIONS]
         await send_message(chat_id, prompt, keyboard=keyboard)
         return
+
+    if field in {"zone", "woreda"}:
+        keyboard = _location_keyboard(field, session["answers"])
+        if keyboard:
+            await send_message(chat_id, prompt, keyboard=keyboard)
+            return
 
     if field in {"zone", "woreda", "kebele", "village"}:
         prior = session["answers"].get(field)
@@ -853,4 +875,3 @@ from app.web_module import WebModule
 
 web_module = WebModule(onboarding_callback=send_post_approval_onboarding)
 app.register_blueprint(web_module.blueprint)
-

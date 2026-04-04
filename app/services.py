@@ -42,6 +42,29 @@ def get_supabase() -> Client:
     return client
 
 
+def list_woreda_regions(region: str | None = None, zone: str | None = None) -> list[dict]:
+    client = get_supabase()
+    query = client.table("woreda_regions").select("sl_no,woreda,zone,region").order("sl_no")
+    if region:
+        query = query.eq("region", region)
+    if zone:
+        query = query.eq("zone", zone)
+    return query.limit(5000).execute().data or []
+
+
+def list_location_options() -> dict[str, list]:
+    rows = list_woreda_regions()
+    regions = sorted({(row.get("region") or "").strip() for row in rows if row.get("region")})
+    zones = sorted({(row.get("zone") or "").strip() for row in rows if row.get("zone")})
+    woredas = sorted({(row.get("woreda") or "").strip() for row in rows if row.get("woreda")})
+    return {
+        "regions": regions,
+        "zones": zones,
+        "woredas": woredas,
+        "rows": rows,
+    }
+
+
 def upload_telegram_file(
     file_bytes: bytes,
     folder: str,
