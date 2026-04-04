@@ -31,7 +31,33 @@
       <form method="get" action="/admin">
         <input type="hidden" name="token" value="{{ token }}" />
         <div class="filter-fields">
-          <div class="field-wrap"><label>Region</label><input name="region" value="{{ region }}" /></div>
+          <div class="field-wrap">
+            <label>Region</label>
+            <select name="region" class="premium-select">
+              <option value="">All regions</option>
+              {% for item in known_regions %}
+                <option value="{{ item }}" {% if region == item %}selected{% endif %}>{{ item }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label>Zone</label>
+            <select name="zone" class="premium-select">
+              <option value="">All zones</option>
+              {% for item in known_zones %}
+                <option value="{{ item }}" {% if request.args.get("zone", "") == item %}selected{% endif %}>{{ item }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label>Woreda</label>
+            <select name="woreda" class="premium-select">
+              <option value="">All woredas</option>
+              {% for item in known_woredas %}
+                <option value="{{ item }}" {% if request.args.get("woreda", "") == item %}selected{% endif %}>{{ item }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="field-wrap"><label>Applicant Type</label><input name="applicant_type" value="{{ applicant_type }}" /></div>
           <div class="field-wrap"><label>Status</label><input name="status" value="{{ status }}" /></div>
           <div class="field-wrap"><label>&nbsp;</label><button type="submit" class="btn btn-primary">Apply</button></div>
@@ -110,18 +136,33 @@
       <div class="card-header"><span class="card-title">Territories (CRUD)</span><span class="card-meta">{{ territories|length }}</span></div>
       <div class="module-body">
         <form method="post" action="/admin/territories?token={{ token }}" class="stack-form">
-          <input name="region" placeholder="Region" required />
-          <input name="zone" placeholder="Zone" required />
-          <input name="woreda" placeholder="Woreda" required />
+          <select name="region" class="premium-select custom-select" data-custom-target="custom-region" required>
+            <option value="" selected disabled>Select region</option>
+            {% for item in known_regions %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
+            <option value="__custom__">+ Add custom region</option>
+          </select>
+          <input id="custom-region" name="region_custom" placeholder="Type custom region" style="display:none;" />
+          <select name="zone" class="premium-select custom-select" data-custom-target="custom-zone" required>
+            <option value="" selected disabled>Select zone</option>
+            {% for item in known_zones %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
+            <option value="__custom__">+ Add custom zone</option>
+          </select>
+          <input id="custom-zone" name="zone_custom" placeholder="Type custom zone" style="display:none;" />
+          <select name="woreda" class="premium-select custom-select" data-custom-target="custom-woreda" required>
+            <option value="" selected disabled>Select woreda</option>
+            {% for item in known_woredas %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
+            <option value="__custom__">+ Add custom woreda</option>
+          </select>
+          <input id="custom-woreda" name="woreda_custom" placeholder="Type custom woreda" style="display:none;" />
           <input name="kebele" placeholder="Kebele" required />
           <input name="village" placeholder="Village" required />
-          <select name="availability_status">{% for s in valid_territory_availability %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+          <select name="availability_status" class="premium-select">{% for s in valid_territory_availability %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
           <button class="btn btn-primary" type="submit">Create Territory</button>
         </form>
         {% for t in territories[:15] %}
         <form method="post" action="/admin/territories/{{ t.territory_id }}?token={{ token }}" class="inline-form">
           <span>{{ t.region }} / {{ t.zone }} / {{ t.village }}</span>
-          <select name="availability_status">{% for s in valid_territory_availability %}<option value="{{ s }}" {% if t.availability_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+          <select name="availability_status" class="premium-select">{% for s in valid_territory_availability %}<option value="{{ s }}" {% if t.availability_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
           <label><input type="checkbox" name="is_locked" {% if t.is_locked %}checked{% endif %}/> locked</label>
           <button class="btn btn-edit" type="submit">Update</button>
         </form>
@@ -209,6 +250,32 @@ function toggleEdit(id) {
     btn.classList.add('open');
   }
 }
+
+document.querySelectorAll('.custom-select').forEach((select) => {
+  const customInput = document.getElementById(select.dataset.customTarget);
+  if (!customInput) return;
+
+  const syncState = () => {
+    const useCustom = select.value === '__custom__';
+    customInput.style.display = useCustom ? 'block' : 'none';
+    customInput.required = useCustom;
+    if (!useCustom) customInput.value = '';
+  };
+
+  syncState();
+  select.addEventListener('change', syncState);
+
+  select.closest('form')?.addEventListener('submit', () => {
+    if (select.value === '__custom__' && customInput.value.trim()) {
+      const customValue = customInput.value.trim();
+      const customOption = document.createElement('option');
+      customOption.value = customValue;
+      customOption.textContent = customValue;
+      select.appendChild(customOption);
+      select.value = customValue;
+    }
+  });
+});
 </script>
 </body>
 </html>
