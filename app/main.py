@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 from html import escape
 
 import httpx
+import csv
+from io import StringIO
+
 from flask import Flask, Response, abort, redirect, request
 
 from app.config import settings
@@ -16,6 +19,7 @@ from app.scoring import score_application
 from app.services import (
     add_bot_admin,
     count_admins,
+    default_agent_tag,
     delete_application_draft,
     get_application_draft,
     get_application,
@@ -32,6 +36,7 @@ from app.services import (
     territory_is_available,
     update_application_status,
     upload_telegram_file,
+    VALID_AGENT_TAGS,
     VALID_STATUSES,
     list_open_territories,
 )
@@ -121,6 +126,8 @@ ADMIN_MENU_KEYBOARD = [
     ["Update Application Status", "Add Admin User"],
     ["Admin Dashboard Link", "Back to Main Menu"],
 ]
+
+VALID_PERFORMANCE_LEVELS = {"High", "Medium", "Low"}
 
 
 def start_keyboard_for_user(user_id: int) -> list[list[str]]:
@@ -236,6 +243,26 @@ async def send_photo(chat_id: int, photo_url: str, caption: str | None = None) -
     await telegram_api("sendPhoto", payload)
 
 
+def send_post_approval_onboarding(application: dict) -> None:
+    chat_id = application.get("telegram_user_id")
+    if not chat_id:
+        return
+    text = (
+        "🎉 Welcome to Inter Ethiopia Solutions!\n\n"
+        "Your application has been approved.\n\n"
+        "Training materials:\n"
+        f"- Solar installation guide (PDF): {settings.training_pdf_url}\n"
+        f"- Solar installation training video: {settings.training_video_url}\n"
+        f"- Sales playbook: {settings.sales_playbook_url}\n\n"
+        "Next steps:\n"
+        "1) Review all training materials.\n"
+        "2) Reply to this chat confirming completion.\n"
+        "3) Wait for territory activation and manager onboarding call."
+    )
+    base_url = f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+    httpx.post(f"{base_url}/sendMessage", json={"chat_id": chat_id, "text": text}, timeout=20)
+
+
 def parse_yes_no(value: str) -> bool:
     normalized = value.strip().lower()
     return normalized in {"yes", "y", "true", "አዎ"}
@@ -330,6 +357,9 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
         "profile_photo_url": answers.get("profile_photo_url"),
         "qualification_score": score.qualification_score,
         "qualification_flag": score.qualification_flag,
+        "agent_tag": default_agent_tag(answers["applicant_type"]),
+        "performance_potential": "Medium",
+        "internal_remarks": None,
         "status": "Submitted",
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -512,8 +542,9 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
         session["state"] = "await_status_update"
         await send_message(
             chat_id,
-            "Reply using:\n<Status>|<Territory Village or blank>|<Admin note or blank>\n"
-            "Example: Approved|Bole 05|Verified documents",
+            "Reply using:\n"
+            "<Status>|<Territory Village or blank>|<Admin note>|<Agent Tag>|<Performance Potential>|<Internal Remarks>\n"
+            "Example: Approved|Bole 05|Verified docs|Hybrid|High|Fast learner",
         )
         return True
 
@@ -523,20 +554,29 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
             await show_admin_menu(chat_id, user_id)
             return True
         parts = [part.strip() for part in value.split("|")]
-        if len(parts) != 3:
-            await send_message(chat_id, "Use format: <Status>|<Territory>|<Admin Note> or Cancel.")
+        if len(parts) != 6:
+            await send_message(
+                chat_id,
+                "Use format: <Status>|<Territory>|<Admin Note>|<Agent Tag>|<Performance Potential>|<Internal Remarks> or Cancel.",
+            )
             return True
-        status, territory_village, admin_notes = parts
+        status, territory_village, admin_notes, agent_tag, performance_potential, internal_remarks = parts
         try:
+            old_application = get_application(session["application_id"]) or {}
             updated = update_application_status(
                 application_id=session["application_id"],
                 status=status,
                 admin_notes=admin_notes or None,
                 territory_village=territory_village or None,
+                agent_tag=agent_tag or None,
+                performance_potential=performance_potential or None,
+                internal_remarks=internal_remarks or None,
             )
         except ValueError as exc:
             await send_message(chat_id, f"Failed to update: {exc}")
             return True
+        if old_application.get("status") != "Approved" and updated.get("status") == "Approved":
+            send_post_approval_onboarding(updated)
 
         await send_message(chat_id, f"Application updated.\n\n{_format_application_summary(updated)}")
         admin_sessions.pop(user_id, None)
@@ -863,15 +903,21 @@ def admin_dashboard() -> Response:
                 <td>{escape(app_row['full_name'])}</td>
                 <td>{escape(app_row['region'])}</td>
                 <td>{escape(app_row['applicant_type'])}</td>
+                <td>{escape(app_row.get('agent_tag') or '')}</td>
                 <td><span class="status-badge">{escape(app_row['status'])}</span></td>
+                <td>{escape(app_row.get('performance_potential') or '')}</td>
+                <td>{escape(app_row.get('internal_remarks') or '')}</td>
                 <td>
                     <div class="uploads">{''.join(uploads) if uploads else '<span class="muted">No uploads</span>'}</div>
                 </td>
                 <td>
                     <form method=\"post\" action=\"/admin/applications/{escape(app_row['application_id'])}/status?token={request.args.get('token','')}\">
                         <select name=\"status\">{''.join([f'<option value="{s}">{s}</option>' for s in sorted(VALID_STATUSES)])}</select>
+                        <select name=\"agent_tag\">{''.join([f'<option value="{tag}" {"selected" if app_row.get("agent_tag")==tag else ""}>{tag}</option>' for tag in sorted(VALID_AGENT_TAGS)])}</select>
+                        <select name=\"performance_potential\">{''.join([f'<option value="{p}" {"selected" if app_row.get("performance_potential")==p else ""}>{p}</option>' for p in sorted(VALID_PERFORMANCE_LEVELS)])}</select>
                         <input name=\"territory_village\" placeholder=\"territory\" value=\"{escape(app_row['preferred_territory'])}\" />
                         <input name=\"admin_notes\" placeholder=\"internal notes\" value=\"{escape(app_row.get('admin_notes') or '')}\" />
+                        <input name=\"internal_remarks\" placeholder=\"remarks\" value=\"{escape(app_row.get('internal_remarks') or '')}\" />
                         <button type=\"submit\">Update</button>
                     </form>
                 </td>
@@ -905,8 +951,12 @@ def admin_dashboard() -> Response:
       <input name=\"status\" value=\"{status or ''}\" placeholder=\"Status\" />
       <button type=\"submit\">Filter</button>
     </form>
+    <p>
+      <a href="/admin/export.csv?token={request.args.get('token', '')}">Export CSV</a> |
+      <a href="/admin/export.xlsx?token={request.args.get('token', '')}">Export Excel</a>
+    </p>
     <table>
-      <tr><th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Status</th><th>Uploads</th><th>Actions</th></tr>
+      <tr><th>ID</th><th>Name</th><th>Region</th><th>Type</th><th>Tag</th><th>Status</th><th>Potential</th><th>Remarks</th><th>Uploads</th><th>Actions</th></tr>
       {''.join(rows)}
     </table>
     </div></body></html>
@@ -921,15 +971,70 @@ def admin_update_status(application_id: str):
     status = str(form.get("status") or "").strip()
     notes = str(form.get("admin_notes") or "").strip() or None
     territory_village = str(form.get("territory_village") or "").strip() or None
+    agent_tag = str(form.get("agent_tag") or "").strip() or None
+    performance_potential = str(form.get("performance_potential") or "").strip() or None
+    internal_remarks = str(form.get("internal_remarks") or "").strip() or None
 
-    update_application_status(
+    previous = get_application(application_id) or {}
+    updated = update_application_status(
         application_id=application_id,
         status=status,
         admin_notes=notes,
         territory_village=territory_village,
+        agent_tag=agent_tag,
+        performance_potential=performance_potential,
+        internal_remarks=internal_remarks,
     )
+    if previous.get("status") != "Approved" and updated.get("status") == "Approved":
+        send_post_approval_onboarding(updated)
     token = request.args.get("token")
     redirect_url = "/admin"
     if token:
         redirect_url = f"/admin?token={token}"
     return redirect(redirect_url, code=303)
+
+
+@app.route("/admin/export.csv", methods=["GET"])
+@app.route("/admin/export.xlsx", methods=["GET"])
+def admin_export() -> Response:
+    _require_admin()
+    apps = get_applications(
+        region=request.args.get("region"),
+        applicant_type=request.args.get("applicant_type"),
+        status=request.args.get("status"),
+    )
+    output = StringIO()
+    fieldnames = [
+        "application_id",
+        "full_name",
+        "phone",
+        "applicant_type",
+        "agent_tag",
+        "status",
+        "region",
+        "zone",
+        "woreda",
+        "kebele",
+        "village",
+        "preferred_territory",
+        "qualification_score",
+        "qualification_flag",
+        "performance_potential",
+        "admin_notes",
+        "internal_remarks",
+        "submitted_at",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in apps:
+        writer.writerow({key: row.get(key) for key in fieldnames})
+
+    content = output.getvalue()
+    is_excel = request.path.endswith(".xlsx")
+    mimetype = "application/vnd.ms-excel" if is_excel else "text/csv"
+    filename = "agent_lifecycle_export.xlsx" if is_excel else "agent_lifecycle_export.csv"
+    return Response(
+        content,
+        mimetype=mimetype,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
