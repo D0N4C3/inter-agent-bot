@@ -69,6 +69,10 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 uploads.append({"label": label, "url": url, "is_image": is_image_url(url)})
             rows.append({"app": app_row, "uploads": uploads})
 
+        known_regions = sorted({(item.get("region") or "").strip() for item in territories if (item.get("region") or "").strip()})
+        known_zones = sorted({(item.get("zone") or "").strip() for item in territories if (item.get("zone") or "").strip()})
+        known_woredas = sorted({(item.get("woreda") or "").strip() for item in territories if (item.get("woreda") or "").strip()})
+
         return Response(
             render_template(
                 "admin_dashboard.html",
@@ -90,6 +94,9 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 app_settings=app_settings,
                 training_links=training_links,
                 mini_app_default_language=next((item.get("setting_value") for item in app_settings if item.get("setting_key") == "default_mini_app_language"), "en"),
+                known_regions=known_regions,
+                known_zones=known_zones,
+                known_woredas=known_woredas,
             ),
             mimetype="text/html",
         )
