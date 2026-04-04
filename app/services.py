@@ -344,7 +344,7 @@ def list_territories_for_map(
 ) -> list[dict]:
     client = get_supabase()
     query = client.table("territories").select(
-        "territory_id,region,zone,woreda,kebele,village,latitude,longitude,is_locked,availability_status"
+        "territory_id,region,zone,woreda,kebele,village,latitude,longitude,is_locked,availability_status,assigned_application_id"
     )
     if region:
         query = query.eq("region", region)
@@ -352,7 +352,26 @@ def list_territories_for_map(
         query = query.eq("zone", zone)
     if woreda:
         query = query.eq("woreda", woreda)
-    return query.limit(500).execute().data or []
+    rows = query.limit(500).execute().data or []
+    assigned_ids = [row.get("assigned_application_id") for row in rows if row.get("assigned_application_id")]
+    assigned_lookup: dict[str, dict] = {}
+    if assigned_ids:
+        applications = (
+            client.table("agent_applications")
+            .select("application_id,full_name,status")
+            .in_("application_id", assigned_ids)
+            .execute()
+            .data
+            or []
+        )
+        assigned_lookup = {item["application_id"]: item for item in applications}
+
+    for row in rows:
+        assigned_id = row.get("assigned_application_id")
+        assigned_app = assigned_lookup.get(assigned_id) if assigned_id else None
+        row["has_agent"] = bool(assigned_app)
+        row["assigned_agent_name"] = assigned_app.get("full_name") if assigned_app else None
+    return rows
 
 
 def list_territories_admin(
@@ -683,6 +702,48 @@ def get_agent_dashboard(telegram_user_id: str) -> dict | None:
         "training": training,
         "performance_events": metrics,
     }
+
+
+def get_training_modules_for_agent(status: str | None, applicant_type: str | None) -> list[dict]:
+    normalized_type = (applicant_type or "").strip()
+    if (status or "").lower() != "approved":
+        return []
+
+    common = [
+        {
+            "module_key": "company_intro",
+            "title": "Inter Ethiopia Orientation",
+            "description": "How our agent program works, standards, and support channels.",
+            "audience": "all",
+        },
+        {
+            "module_key": "code_of_conduct",
+            "title": "Code of Conduct & Safety",
+            "description": "Safety basics, customer etiquette, and reporting procedures.",
+            "audience": "all",
+        },
+    ]
+    sales = [
+        {
+            "module_key": "sales_foundation",
+            "title": "Sales Fundamentals",
+            "description": "Lead qualification, objection handling, and closing workflow.",
+            "audience": "sales",
+        }
+    ]
+    installer = [
+        {
+            "module_key": "installer_foundation",
+            "title": "Installation Fundamentals",
+            "description": "Site checklist, installation flow, and quality control.",
+            "audience": "installer",
+        }
+    ]
+    if normalized_type == "sales_only":
+        return common + sales
+    if normalized_type == "installer_only":
+        return common + installer
+    return common + sales + installer
 
 
 def update_agent_profile(telegram_user_id: str, updates: dict) -> dict:
