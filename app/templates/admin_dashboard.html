@@ -33,7 +33,7 @@
         <div class="filter-fields">
           <div class="field-wrap">
             <label>Region</label>
-            <select name="region" class="premium-select">
+            <select id="filter-region" name="region" class="premium-select">
               <option value="">All regions</option>
               {% for item in known_regions %}
                 <option value="{{ item }}" {% if region == item %}selected{% endif %}>{{ item }}</option>
@@ -42,7 +42,7 @@
           </div>
           <div class="field-wrap">
             <label>Zone</label>
-            <select name="zone" class="premium-select">
+            <select id="filter-zone" name="zone" class="premium-select">
               <option value="">All zones</option>
               {% for item in known_zones %}
                 <option value="{{ item }}" {% if request.args.get("zone", "") == item %}selected{% endif %}>{{ item }}</option>
@@ -51,7 +51,7 @@
           </div>
           <div class="field-wrap">
             <label>Woreda</label>
-            <select name="woreda" class="premium-select">
+            <select id="filter-woreda" name="woreda" class="premium-select">
               <option value="">All woredas</option>
               {% for item in known_woredas %}
                 <option value="{{ item }}" {% if request.args.get("woreda", "") == item %}selected{% endif %}>{{ item }}</option>
@@ -136,19 +136,19 @@
       <div class="card-header"><span class="card-title">Territories (CRUD)</span><span class="card-meta">{{ territories|length }}</span></div>
       <div class="module-body">
         <form method="post" action="/admin/territories?token={{ token }}" class="stack-form">
-          <select name="region" class="premium-select custom-select" data-custom-target="custom-region" required>
+          <select id="territory-region" name="region" class="premium-select custom-select" data-custom-target="custom-region" required>
             <option value="" selected disabled>Select region</option>
             {% for item in known_regions %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
             <option value="__custom__">+ Add custom region</option>
           </select>
           <input id="custom-region" name="region_custom" placeholder="Type custom region" style="display:none;" />
-          <select name="zone" class="premium-select custom-select" data-custom-target="custom-zone" required>
+          <select id="territory-zone" name="zone" class="premium-select custom-select" data-custom-target="custom-zone" required>
             <option value="" selected disabled>Select zone</option>
             {% for item in known_zones %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
             <option value="__custom__">+ Add custom zone</option>
           </select>
           <input id="custom-zone" name="zone_custom" placeholder="Type custom zone" style="display:none;" />
-          <select name="woreda" class="premium-select custom-select" data-custom-target="custom-woreda" required>
+          <select id="territory-woreda" name="woreda" class="premium-select custom-select" data-custom-target="custom-woreda" required>
             <option value="" selected disabled>Select woreda</option>
             {% for item in known_woredas %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
             <option value="__custom__">+ Add custom woreda</option>
@@ -239,6 +239,46 @@
 </main>
 
 <script>
+const locationRows = {{ location_rows | tojson }};
+
+function getUniqueLocationValues(field, filters = {}) {
+  const filtered = (locationRows || []).filter((row) =>
+    Object.entries(filters).every(([key, value]) => !value || row?.[key] === value),
+  );
+  const values = filtered.map((row) => (row?.[field] || '').trim()).filter(Boolean);
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function setSelectOptions(selectId, values, placeholder, keepValue = true) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const currentValue = select.value;
+  const hasCustomOption = select.classList.contains('custom-select');
+  select.innerHTML = `<option value="">${placeholder}</option>` + values.map((item) => `<option value="${item}">${item}</option>`).join('');
+  if (hasCustomOption) {
+    select.innerHTML += '<option value="__custom__">+ Add custom</option>';
+  }
+  if (keepValue && currentValue && values.includes(currentValue)) {
+    select.value = currentValue;
+  } else if (keepValue && currentValue === '__custom__' && hasCustomOption) {
+    select.value = '__custom__';
+  }
+}
+
+function syncFilterLocationOptions() {
+  const region = document.getElementById('filter-region')?.value || '';
+  const zone = document.getElementById('filter-zone')?.value || '';
+  setSelectOptions('filter-zone', getUniqueLocationValues('zone', { region }), 'All zones');
+  setSelectOptions('filter-woreda', getUniqueLocationValues('woreda', { region, zone }), 'All woredas');
+}
+
+function syncTerritoryLocationOptions() {
+  const region = document.getElementById('territory-region')?.value || '';
+  const zone = document.getElementById('territory-zone')?.value || '';
+  setSelectOptions('territory-zone', getUniqueLocationValues('zone', { region }), 'Select zone');
+  setSelectOptions('territory-woreda', getUniqueLocationValues('woreda', { region, zone }), 'Select woreda');
+}
+
 function toggleEdit(id) {
   const panel  = document.getElementById('edit-' + id);
   const btn    = document.getElementById('editbtn-' + id);
@@ -276,6 +316,13 @@ document.querySelectorAll('.custom-select').forEach((select) => {
     }
   });
 });
+
+document.getElementById('filter-region')?.addEventListener('change', syncFilterLocationOptions);
+document.getElementById('filter-zone')?.addEventListener('change', syncFilterLocationOptions);
+document.getElementById('territory-region')?.addEventListener('change', syncTerritoryLocationOptions);
+document.getElementById('territory-zone')?.addEventListener('change', syncTerritoryLocationOptions);
+syncFilterLocationOptions();
+syncTerritoryLocationOptions();
 </script>
 </body>
 </html>
