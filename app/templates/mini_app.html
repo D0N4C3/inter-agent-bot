@@ -214,9 +214,9 @@
         <div class="card-head"><span class="card-head-icon">🔍</span><span data-i18n="filter_territories">Filter Territories</span></div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>Region</label><select id="filter_region"><option value="">All regions</option></select></div>
-            <div class="field"><label>Zone</label><select id="filter_zone"><option value="">All zones</option></select></div>
-            <div class="field"><label>Woreda</label><select id="filter_woreda"><option value="">All woredas</option></select></div>
+            <div class="field"><label data-i18n="region_label">Region</label><select id="filter_region"><option value="" data-i18n="all_regions">All regions</option></select></div>
+            <div class="field"><label data-i18n="zone_label">Zone</label><select id="filter_zone"><option value="" data-i18n="all_zones">All zones</option></select></div>
+            <div class="field"><label data-i18n="woreda_label">Woreda</label><select id="filter_woreda"><option value="" data-i18n="all_woredas">All woredas</option></select></div>
           </div>
           <div style="display:flex;gap:10px;margin-top:12px;">
             <button class="btn btn-primary" style="flex:1" onclick="handleLoadTerritories(this)" data-i18n="refresh_map">Refresh Map</button>
@@ -253,18 +253,18 @@
       <button class="btn btn-secondary" onclick="handleLoadDashboard(this)" style="margin-bottom:16px" data-i18n="reload_dashboard">↻ Reload Dashboard</button>
 
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">✏️</span>Update Profile</div>
+        <div class="card-head"><span class="card-head-icon">✏️</span><span data-i18n="update_profile">Update Profile</span></div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="field"><label>Full name</label><input id="upd_full_name" placeholder="Full name" /></div>
-            <div class="field"><label>Phone</label><input id="upd_phone" placeholder="+2519XXXXXXXX" /></div>
-            <div class="field"><label>Region</label><input id="upd_region" placeholder="Region" /></div>
-            <div class="field"><label>Zone</label><input id="upd_zone" placeholder="Zone" /></div>
-            <div class="field"><label>Woreda</label><input id="upd_woreda" placeholder="Woreda" /></div>
-            <div class="field"><label>Preferred territory</label><input id="upd_territory" placeholder="Territory" /></div>
-            <div class="field"><label>Work type</label><input id="upd_work_type" placeholder="Sales / Installer / Technician" /></div>
+            <div class="field"><label data-i18n="full_name_label">Full name</label><input id="upd_full_name" placeholder="Full name" data-i18n-placeholder="full_name_placeholder" /></div>
+            <div class="field"><label data-i18n="phone_number_label">Phone</label><input id="upd_phone" placeholder="+2519XXXXXXXX" data-i18n-placeholder="phone_number_placeholder" /></div>
+            <div class="field"><label data-i18n="region_label">Region</label><input id="upd_region" placeholder="Region" data-i18n-placeholder="region_label" /></div>
+            <div class="field"><label data-i18n="zone_label">Zone</label><input id="upd_zone" placeholder="Zone" data-i18n-placeholder="zone_label" /></div>
+            <div class="field"><label data-i18n="woreda_label">Woreda</label><input id="upd_woreda" placeholder="Woreda" data-i18n-placeholder="woreda_label" /></div>
+            <div class="field"><label data-i18n="preferred_territory_label">Preferred territory</label><input id="upd_territory" placeholder="Territory" data-i18n-placeholder="territory" /></div>
+            <div class="field"><label data-i18n="work_type_label">Work type</label><input id="upd_work_type" placeholder="Sales / Installer / Technician" data-i18n-placeholder="work_type_placeholder" /></div>
           </div>
-          <button class="btn btn-primary" onclick="handleUpdateProfile(this)">Save Profile</button>
+          <button class="btn btn-primary" onclick="handleUpdateProfile(this)" data-i18n="save_profile">Save Profile</button>
         </div>
       </div>
     </section>
@@ -314,10 +314,10 @@
     <!-- Rankings Tab -->
     <section id="tab-rankings" class="tab">
       <div class="section-header">
-        <div class="section-title">Rankings</div>
-        <div class="section-sub">Top performing agents by sales and installations.</div>
+        <div class="section-title" data-i18n="rankings">Rankings</div>
+        <div class="section-sub" data-i18n="rankings_sub">Top performing agents by sales and installations.</div>
       </div>
-      <button class="btn btn-secondary" onclick="handleLoadRankings(this)" style="margin-bottom:16px">↻ Refresh Rankings</button>
+      <button class="btn btn-secondary" onclick="handleLoadRankings(this)" style="margin-bottom:16px" data-i18n="refresh_rankings">↻ Refresh Rankings</button>
       <div id="rankingsContainer"></div>
     </section>
 

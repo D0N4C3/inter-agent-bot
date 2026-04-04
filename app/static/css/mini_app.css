@@ -364,6 +364,7 @@ select option { background: #111e32; color: #fff; }
 .rank-title {
   font-size: 14px; font-weight: 700; margin: 16px 0 10px;
   display: flex; align-items: center; gap: 7px;
+  color: #fff;
 }
 .rank-list { display: flex; flex-direction: column; gap: 6px; }
 .rank-item {
