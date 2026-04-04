@@ -17,7 +17,6 @@ from app.services import (
     send_admin_telegram_alert,
     send_notification_email,
     suggest_nearest_territories,
-    territory_is_available,
     upload_telegram_file,
 )
 from app.web.auth import mini_app_session
@@ -76,19 +75,10 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
     def mini_app_register() -> dict:
         session = mini_app_session(required=True)
         payload = request.get_json(silent=True) or {}
-        required = ["full_name", "phone", "region", "zone", "woreda", "kebele", "village", "preferred_territory"]
+        required = ["full_name", "phone", "region", "zone", "woreda", "preferred_territory"]
         missing = [field for field in required if not payload.get(field)]
         if missing:
             return {"ok": False, "error": f"Missing fields: {', '.join(missing)}"}, 400
-
-        if not territory_is_available(
-            payload["preferred_territory"],
-            region=payload.get("region"),
-            zone=payload.get("zone"),
-            woreda=payload.get("woreda"),
-            kebele=payload.get("kebele"),
-        ):
-            return {"ok": False, "error": "Territory is not available"}, 409
 
         score = score_application(payload)
         record = {
@@ -99,8 +89,8 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
             "region": payload["region"],
             "zone": payload["zone"],
             "woreda": payload["woreda"],
-            "kebele": payload["kebele"],
-            "village": payload["village"],
+            "kebele": payload.get("kebele") or "N/A",
+            "village": payload.get("village") or payload.get("woreda"),
             "experience": bool(payload.get("experience", False)),
             "experience_years": int(payload.get("experience_years") or 0),
             "work_type": payload.get("work_type", "N/A"),

@@ -141,9 +141,10 @@
               <label>Woreda</label>
               <select id="woreda"><option value="">Select woreda</option></select>
             </div>
-            <div class="field"><label>Kebele</label><input id="kebele" placeholder="Kebele name" /></div>
-            <div class="field"><label>Town / Village</label><input id="village" placeholder="Village name" /></div>
-            <div class="field"><label>Preferred territory</label><input id="preferred_territory" placeholder="Same or nearby area" /></div>
+            <div class="field">
+              <label>Do you live in the territory?</label>
+              <select id="preferred_territory"><option value="yes">Yes</option><option value="no">No</option></select>
+            </div>
           </div>
         </div>
       </div>
@@ -258,20 +259,12 @@
     <section id="tab-training" class="tab">
       <div class="section-header">
         <div class="section-title">Training</div>
-        <div class="section-sub">Track your module completion progress.</div>
+        <div class="section-sub">Approved agents can access role-based modules and mark completion from the module list.</div>
       </div>
       <div class="card">
-        <div class="card-head"><span class="card-head-icon">🎓</span>Mark Module Complete</div>
+        <div class="card-head"><span class="card-head-icon">🎓</span>My Training Modules</div>
         <div class="card-body">
-          <div class="form-grid">
-            <div class="field"><label>Application ID</label><input id="training_application_id" placeholder="Your application UUID" /></div>
-            <div class="field"><label>Module key</label><input id="training_module_key" placeholder="e.g. safety_intro" /></div>
-            <div class="field">
-              <label>Completed?</label>
-              <select id="training_completed"><option value="true">Yes</option><option value="false">No</option></select>
-            </div>
-          </div>
-          <button class="btn btn-primary" onclick="handleMarkTraining(this)">Save Progress</button>
+          <div id="trainingModulesContainer" class="rank-list"></div>
         </div>
       </div>
     </section>
@@ -525,6 +518,18 @@
   let pickedLatLng = null;
   let locationRows = [];
   let nearestMarkers = [];
+  let agentMarkers = [];
+  let dashboardData = null;
+  const darkMapStyles = [
+    { elementType: 'geometry', stylers: [{ color: '#111827' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#111827' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
+    { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1f2937' }] },
+    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1f2937' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#374151' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+  ];
 
   function initMap() {
     if (!window.google?.maps) {
@@ -539,6 +544,7 @@
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
+      styles: darkMapStyles,
     });
     infoWindow = new google.maps.InfoWindow();
     map.addListener('click', (e) => {
@@ -566,6 +572,8 @@
     const data = await res.json();
     territoryMarkers.forEach(m => m.setMap(null));
     territoryMarkers = [];
+    agentMarkers.forEach(m => m.setMap(null));
+    agentMarkers = [];
     const items = data.items || [];
     document.getElementById('kpiTerritories').textContent = items.length;
     document.getElementById('kpiOpen').textContent   = items.filter(t => !t.is_locked).length;
@@ -591,6 +599,19 @@
         infoWindow.open({ anchor: marker, map });
       });
       territoryMarkers.push(marker);
+      if (t.has_agent) {
+        const agentMarker = new google.maps.Marker({
+          map,
+          position: { lat: t.latitude, lng: t.longitude },
+          title: t.assigned_agent_name || 'Assigned agent',
+          label: '👤',
+        });
+        agentMarker.addListener('click', () => {
+          infoWindow.setContent(`<strong>${t.village}</strong><br>👤 ${t.assigned_agent_name || 'Agent assigned'}`);
+          infoWindow.open({ anchor: agentMarker, map });
+        });
+        agentMarkers.push(agentMarker);
+      }
     });
     return items.length;
   }
@@ -738,8 +759,6 @@
         region:             document.getElementById('region').value,
         zone:               document.getElementById('zone').value,
         woreda:             document.getElementById('woreda').value,
-        kebele:             document.getElementById('kebele').value,
-        village:            document.getElementById('village').value,
         preferred_territory:document.getElementById('preferred_territory').value,
         applicant_type:     document.getElementById('applicant_type').value,
         experience:         asBool('experience'),
@@ -773,6 +792,7 @@
     if (!uid) { setResult({ok:false, error:'Unable to identify Telegram user'}); return; }
     const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}`);
     const data = await res.json();
+    dashboardData = data.dashboard || null;
     if (data.dashboard) {
       const profile   = data.dashboard.profile   || data.dashboard;
       const territory = data.dashboard.territory || data.dashboard;
@@ -782,7 +802,6 @@
       document.getElementById('upd_territory').value = territory.village || data.dashboard.preferred_territory || '';
       const appId = profile.application_id || data.dashboard.application_id;
       if (appId) {
-        document.getElementById('training_application_id').value = appId;
         document.getElementById('perf_application_id').value     = appId;
       }
       // Update profile card
@@ -792,6 +811,7 @@
       if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || 'Agent';
       if (cardMeta) cardMeta.textContent = [profile.agent_tag, profile.status || data.dashboard.status].filter(Boolean).join(' · ');
       if (cardEl)   cardEl.style.display = '';
+      renderTrainingModules();
     }
     setResult(data.ok ? 'Dashboard loaded.' : data);
   }
@@ -829,24 +849,55 @@
   }
 
   // ── Training ──────────────────────────────────────
-  async function markTraining() {
-    const appId = document.getElementById('training_application_id').value.trim();
-    const moduleKey = document.getElementById('training_module_key').value.trim();
-    if (!appId || !moduleKey) { setResult({ok:false, error:'application_id and module_key are required'}); return; }
+  async function markTraining(moduleKey, completed) {
+    const appId = dashboardData?.profile?.application_id;
+    if (!appId || !moduleKey) { setResult({ok:false, error:'Dashboard not loaded yet.'}); return; }
     const res = await apiFetch(`/api/agent/training/${encodeURIComponent(appId)}`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({module_key: moduleKey, completed: asBool('training_completed')})
+      body: JSON.stringify({module_key: moduleKey, completed})
     });
     const data = await res.json();
     setResult(data.ok ? 'Training progress saved.' : data);
+    if (data.ok) await loadDashboard();
   }
 
-  async function handleMarkTraining(btn) {
+  async function handleMarkTraining(btn, moduleKey, completed) {
     setBtnLoading(btn, true, 'Saving…');
-    try { await markTraining(); }
+    try { await markTraining(moduleKey, completed); }
     catch(e) { setResult({ok:false, error:'Failed to save training progress.'}); }
     finally  { setBtnLoading(btn, false); }
+  }
+
+  function renderTrainingModules() {
+    const container = document.getElementById('trainingModulesContainer');
+    if (!container) return;
+    const modules = dashboardData?.training_modules || [];
+    const completedSet = new Set((dashboardData?.training || []).filter(item => item.completed).map(item => item.module_key));
+    if (!modules.length) {
+      container.innerHTML = '<p class="muted">Training modules will appear after your application is approved.</p>';
+      return;
+    }
+    container.innerHTML = modules.map(module => {
+      const done = completedSet.has(module.module_key);
+      const attachments = module.attachments || {};
+      return `
+        <div class="rank-item">
+          <div class="rank-num">${done ? '✓' : '•'}</div>
+          <div class="rank-name">
+            <div style="font-weight:700">${module.title}</div>
+            <div class="muted" style="font-size:12px">${module.description || ''}</div>
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+              ${attachments.pdf ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.pdf}">PDF</a>` : ''}
+              ${attachments.video ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.video}">Video</a>` : ''}
+              ${attachments.playbook ? `<a class="btn btn-secondary" style="margin-top:0" target="_blank" rel="noopener" href="${attachments.playbook}">Playbook</a>` : ''}
+            </div>
+          </div>
+          <button class="btn ${done ? 'btn-secondary' : 'btn-primary'}" style="width:auto;margin-top:0"
+            onclick="handleMarkTraining(this, '${module.module_key}', ${done ? 'false' : 'true'})">${done ? 'Mark Incomplete' : 'Mark Complete'}</button>
+        </div>
+      `;
+    }).join('');
   }
 
   // ── Performance ───────────────────────────────────
