@@ -127,6 +127,7 @@ def start_keyboard_for_user(user_id: int) -> list[list[str]]:
         [tr(user_id, "btn_check_territory")],
         [tr(user_id, "btn_check_status")],
         [tr(user_id, "btn_contact_support")],
+        [tr(user_id, "btn_change_language")],
     ]
     if is_bot_admin(str(user_id)):
         keyboard.insert(0, [tr(user_id, "btn_admin_management")])
@@ -627,6 +628,12 @@ async def _telegram_webhook(update: dict) -> dict:
             sessions[user_id]["language"] = LANGUAGE_LABELS[text]
             sessions[user_id]["awaiting_language"] = False
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
+            return {"ok": True}
+
+        if text in {"/language", tr(user_id, "btn_change_language")}:
+            sessions.setdefault(user_id, {})
+            sessions[user_id]["awaiting_language"] = True
+            await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return {"ok": True}
 
         if language_selection_pending(user_id):
