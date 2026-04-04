@@ -366,11 +366,37 @@ def list_territories_for_map(
         )
         assigned_lookup = {item["application_id"]: item for item in applications}
 
+    approved_agents = (
+        client.table("agent_applications")
+        .select("full_name,region,zone,woreda,preferred_territory,status")
+        .eq("status", "Approved")
+        .limit(1000)
+        .execute()
+        .data
+        or []
+    )
+
     for row in rows:
         assigned_id = row.get("assigned_application_id")
         assigned_app = assigned_lookup.get(assigned_id) if assigned_id else None
-        row["has_agent"] = bool(assigned_app)
-        row["assigned_agent_name"] = assigned_app.get("full_name") if assigned_app else None
+        fallback_app = None
+        if not assigned_app:
+            fallback_matches = [
+                app
+                for app in approved_agents
+                if app.get("region") == row.get("region")
+                and app.get("zone") == row.get("zone")
+                and app.get("woreda") == row.get("woreda")
+                and (
+                    (app.get("preferred_territory") and app.get("preferred_territory") == row.get("village"))
+                    or not app.get("preferred_territory")
+                )
+            ]
+            if fallback_matches:
+                fallback_app = fallback_matches[0]
+        display_app = assigned_app or fallback_app
+        row["has_agent"] = bool(display_app)
+        row["assigned_agent_name"] = display_app.get("full_name") if display_app else None
     return rows
 
 
@@ -815,9 +841,17 @@ def get_rankings() -> dict:
         if hasattr(client, "rpc")
         else []
     )
+    def sanitize(items: list[dict] | None) -> list[dict]:
+        safe_rows: list[dict] = []
+        for row in items or []:
+            safe = dict(row)
+            safe.pop("phone", None)
+            safe_rows.append(safe)
+        return safe_rows
+
     return {
-        "top_sales_agents": sales or [],
-        "top_installers": installers or [],
+        "top_sales_agents": sanitize(sales),
+        "top_installers": sanitize(installers),
     }
 
 

@@ -421,9 +421,30 @@
     currentLanguage = normalized;
     localStorage.setItem('mini_app_language', currentLanguage);
     applyLanguage(currentLanguage);
+    refreshLocalizedUI();
     if (notify) {
       showToast(t('language_updated'), 'info');
     }
+  }
+
+  function refreshLocalizedUI() {
+    refreshLocationSelects();
+    if (dashboardData) {
+      renderDashboardHighlights(dashboardData);
+      renderTrainingModules();
+      const profile = dashboardData.profile || {};
+      const cardMeta = document.getElementById('profileCardMeta');
+      const statusPill = document.getElementById('profileStatusPill');
+      if (cardMeta) {
+        const localizedTag = localizeEnum(profile.agent_tag, 'agent_tag');
+        const localizedStatus = localizeEnum(profile.status, 'status');
+        cardMeta.textContent = [localizedTag, localizedStatus].filter(Boolean).join(' · ');
+      }
+      if (statusPill) {
+        statusPill.textContent = localizeEnum(profile.status, 'status') || t('submitted');
+      }
+    }
+    renderRankings();
   }
 
   function setupLanguageGate() {
@@ -516,8 +537,15 @@
   function getLocalizedModuleField(module, field) {
     const key = module?.module_key;
     if (!key) return module?.[field] || '';
-    const translated = t(`training_module_${normalizeKey(key)}_${field}`);
-    if (translated && translated !== `training_module_${normalizeKey(key)}_${field}`) {
+    const normalizedKey = normalizeKey(key);
+    const aliases = {
+      company_intro: 'inter_ethiopia_orientation',
+      code_of_conduct: 'code_of_conduct_safety',
+      sales_foundation: 'sales_fundamentals',
+    };
+    const translationKey = `training_module_${aliases[normalizedKey] || normalizedKey}_${field}`;
+    const translated = t(translationKey);
+    if (translated && translated !== translationKey) {
       return translated;
     }
     return module?.[field] || '';
@@ -555,6 +583,7 @@
   let nearestMarkers = [];
   let agentMarkers = [];
   let dashboardData = null;
+  let rankingsData = null;
   const darkMapStyles = [
     { elementType: 'geometry', stylers: [{ color: '#111827' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#111827' }] },
@@ -741,8 +770,8 @@
     const woredaSelect = document.getElementById('woreda');
     const zones = reg ? getUniqueValues('zone', { region: reg }) : [];
     const woredas = reg && zon ? getUniqueValues('woreda', { region: reg, zone: zon }) : [];
-    setSelectOptions('zone', zones, 'Select zone');
-    setSelectOptions('woreda', woredas, 'Select woreda');
+    setSelectOptions('zone', zones, t('select_zone'));
+    setSelectOptions('woreda', woredas, t('select_woreda'));
     if (zoneSelect) zoneSelect.disabled = !reg;
     if (woredaSelect) woredaSelect.disabled = !(reg && zoneSelect?.value);
   }
@@ -1015,7 +1044,6 @@
       <div class="rank-item">
         <div class="rank-num">${idx + 1}</div>
         <div class="rank-name">${item.full_name || t('na')}</div>
-        <div class="rank-phone">${item.phone || ''}</div>
         <div class="rank-score">${item[valueKey] ?? 0}${valueSuffix}</div>
       </div>
     `).join('');
@@ -1028,15 +1056,21 @@
   async function loadRankings() {
     const res = await apiFetch('/api/rankings');
     const data = await res.json();
-    document.getElementById('rankingsContainer').innerHTML =
-      drawRankList(t('top_sales_agents'),     '💰', data.rankings?.top_sales_agents  || [], 'total_sales',     ` ${t('sales_suffix')}`) +
-      drawRankList(t('top_installer_agents'), '🔧', data.rankings?.top_installers    || data.rankings?.top_installer_agents || [], 'completed_jobs', ` ${t('jobs_suffix')}`);
+    rankingsData = data.rankings || null;
+    renderRankings();
     setResult(t('rankings_refreshed'));
   }
 
   // drawRankTable kept for backward-compat
   function drawRankTable(title, items, valueKey) {
     return drawRankList(title, '🏆', items, valueKey);
+  }
+
+  function renderRankings() {
+    if (!rankingsData) return;
+    document.getElementById('rankingsContainer').innerHTML =
+      drawRankList(t('top_sales_agents'), '💰', rankingsData.top_sales_agents || [], 'total_sales', ` ${t('sales_suffix')}`) +
+      drawRankList(t('top_installer_agents'), '🔧', rankingsData.top_installers || rankingsData.top_installer_agents || [], 'completed_jobs', ` ${t('jobs_suffix')}`);
   }
 
   async function handleLoadRankings(btn) {
@@ -1076,14 +1110,14 @@
       toggleBusinessQuestions();
       document.getElementById('filter_region')?.addEventListener('change', () => {
         const region = document.getElementById('filter_region').value;
-        setSelectOptions('filter_zone', getUniqueValues('zone', { region }), 'All zones');
+        setSelectOptions('filter_zone', getUniqueValues('zone', { region }), t('all_zones'));
         const zone = document.getElementById('filter_zone').value;
-        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), 'All woredas');
+        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), t('all_woredas'));
       });
       document.getElementById('filter_zone')?.addEventListener('change', () => {
         const region = document.getElementById('filter_region').value;
         const zone = document.getElementById('filter_zone').value;
-        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), 'All woredas');
+        setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), t('all_woredas'));
       });
       await loadDashboard();
       if (map) await loadTerritories();
