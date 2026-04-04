@@ -15,6 +15,7 @@
   "submit_application": "ማመልከቻ ያስገቡ",
   "my_training_modules": "የእኔ የሥልጠና ሞጁሎች",
   "my_dashboard": "የእኔ ዳሽቦርድ",
+  "my_dashboard_sub": "የማመልከቻዎን ሁኔታ፣ መገለጫ እና ቁልፍ የአፈጻጸም መረጃዎችን ይመልከቱ።",
   "refresh_map": "ካርታውን ያድሱ",
   "nearest_gps": "📡 በGPS ቅርብ የሆኑ",
   "reload_dashboard": "↻ ዳሽቦርድ እንደገና ጫን",
@@ -55,4 +56,29 @@
   "init_error": "initMiniApp ስህተት:",
   "agent_fallback": "ወኪል",
   "submitted": "ገብቷል"
+  ,"total_territories": "ጠቅላላ ክልሎች"
+  ,"open": "ክፍት"
+  ,"locked": "የተቆለፉ"
+  ,"brand_name": "ኢንተር ኢትዮጵያ"
+  ,"agent_portal": "የወኪል መድረክ"
+  ,"portal_subtitle": "ኦፊሴላዊ የምዝገባ እና የመስክ ስራ መስሪያ ቦታ።"
+  ,"territory_map": "የክልል ካርታ"
+  ,"territory_map_sub": "ክፍት እና የተቆለፉ ክልሎችን ይመልከቱ። ቦታ ለመምረጥ ካርታውን ይጫኑ።"
+  ,"filter_territories": "ክልሎችን ማጣሪያ"
+  ,"training_sub": "የጸደቁ ወኪሎች በሚና ላይ የተመሰረቱ ሞጁሎችን ማግኘት እና ማጠናቀቅን ማመልከት ይችላሉ።"
+  ,"performance_short": "አፈጻጸም"
+  ,"loaded_territories": "{count} ክልሎች ተጭነዋል።"
+  ,"please_upload": "እባክዎ {field} ይጫኑ"
+  ,"application_id": "የማመልከቻ መለያ"
+  ,"territory": "ክልል"
+  ,"training_progress": "የስልጠና እድገት"
+  ,"sales_logged": "የተመዘገበ ሽያጭ"
+  ,"install_jobs": "የመጫኛ ስራዎች"
+  ,"work_type": "የስራ አይነት"
+  ,"no_data_yet": "ገና ምንም ውሂብ የለም።"
+  ,"na": "N/A"
+  ,"top_sales_agents": "ከፍተኛ የሽያጭ ወኪሎች"
+  ,"top_installer_agents": "ከፍተኛ የመጫኛ ወኪሎች"
+  ,"sales_suffix": "ሽያጭ"
+  ,"jobs_suffix": "ስራዎች"
 }
