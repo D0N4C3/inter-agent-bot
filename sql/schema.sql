@@ -86,6 +86,14 @@ create table if not exists inter_agent_apply.bot_admins (
   created_at timestamptz not null default now()
 );
 
+create table if not exists inter_agent_apply.app_settings (
+  setting_id uuid primary key default gen_random_uuid(),
+  setting_key text not null unique,
+  setting_value text not null,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists inter_agent_apply.application_drafts (
   draft_id uuid primary key default gen_random_uuid(),
   telegram_user_id text not null unique,

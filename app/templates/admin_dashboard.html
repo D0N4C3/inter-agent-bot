@@ -81,6 +81,32 @@
 
   <section class="grid-2">
     <div class="card">
+      <div class="card-header"><span class="card-title">Platform Settings</span><span class="card-meta">{{ app_settings|length }}</span></div>
+      <div class="module-body">
+        <form method="post" action="/admin/settings?token={{ token }}" class="stack-form">
+          <input name="training_pdf_url" placeholder="Training PDF URL" value="{{ training_links.pdf }}" />
+          <input name="training_video_url" placeholder="Training video URL" value="{{ training_links.video }}" />
+          <input name="sales_playbook_url" placeholder="Sales playbook URL" value="{{ training_links.sales_playbook }}" />
+          <select name="default_mini_app_language">
+            <option value="en" {% if mini_app_default_language == "en" %}selected{% endif %}>Mini app default: English</option>
+            <option value="am" {% if mini_app_default_language == "am" %}selected{% endif %}>Mini app default: አማርኛ</option>
+          </select>
+          <input name="updated_by" placeholder="Updated by (optional)" />
+          <button class="btn btn-primary" type="submit">Save Settings</button>
+        </form>
+        <form method="post" action="/admin/settings/training-materials/upload?token={{ token }}" class="stack-form" enctype="multipart/form-data">
+          <select name="material_key">
+            <option value="training_pdf_url">Upload Training PDF</option>
+            <option value="training_video_url">Upload Training Video</option>
+            <option value="sales_playbook_url">Upload Sales Playbook</option>
+          </select>
+          <input name="file" type="file" required />
+          <button class="btn btn-edit" type="submit">Upload & Attach</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-header"><span class="card-title">Territories (CRUD)</span><span class="card-meta">{{ territories|length }}</span></div>
       <div class="module-body">
         <form method="post" action="/admin/territories?token={{ token }}" class="stack-form">

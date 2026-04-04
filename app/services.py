@@ -38,6 +38,8 @@ VALID_TERRITORY_AVAILABILITY = {
     "blocked",
 }
 
+VALID_UI_LANGUAGES = {"en", "am"}
+
 
 def get_supabase() -> Client:
     client = create_client(
@@ -46,6 +48,58 @@ def get_supabase() -> Client:
         options=ClientOptions(schema=settings.supabase_schema),
     )
     return client
+
+
+def list_app_settings() -> list[dict]:
+    client = get_supabase()
+    result = client.table("app_settings").select("*").order("setting_key").execute()
+    return result.data or []
+
+
+def get_app_setting(setting_key: str, default: str | None = None) -> str | None:
+    client = get_supabase()
+    result = (
+        client.table("app_settings")
+        .select("setting_value")
+        .eq("setting_key", setting_key)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        value = result.data[0].get("setting_value")
+        return str(value) if value is not None else default
+    return default
+
+
+def upsert_app_setting(setting_key: str, setting_value: str, updated_by: str | None = None) -> dict:
+    client = get_supabase()
+    existing = (
+        client.table("app_settings")
+        .select("setting_id")
+        .eq("setting_key", setting_key)
+        .limit(1)
+        .execute()
+    )
+    payload: dict = {
+        "setting_key": setting_key.strip(),
+        "setting_value": setting_value.strip(),
+        "updated_by": updated_by,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if existing.data:
+        setting_id = existing.data[0]["setting_id"]
+        result = client.table("app_settings").update(payload).eq("setting_id", setting_id).execute()
+    else:
+        result = client.table("app_settings").insert(payload).execute()
+    return result.data[0]
+
+
+def get_training_links() -> dict[str, str]:
+    return {
+        "pdf": get_app_setting("training_pdf_url", settings.training_pdf_url) or settings.training_pdf_url,
+        "video": get_app_setting("training_video_url", settings.training_video_url) or settings.training_video_url,
+        "sales_playbook": get_app_setting("sales_playbook_url", settings.sales_playbook_url) or settings.sales_playbook_url,
+    }
 
 
 def list_woreda_regions(region: str | None = None, zone: str | None = None) -> list[dict]:

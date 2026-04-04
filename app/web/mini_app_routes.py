@@ -8,7 +8,9 @@ from flask import Blueprint, Response, render_template, request
 from app.config import settings
 from app.scoring import score_application
 from app.services import (
+    VALID_UI_LANGUAGES,
     default_agent_tag,
+    get_app_setting,
     list_location_options,
     list_territories_for_map,
     save_application,
@@ -24,12 +26,16 @@ from app.web.auth import mini_app_session
 def register_mini_app_routes(blueprint: Blueprint) -> None:
     @blueprint.get("/mini-app")
     def mini_app() -> Response:
+        default_lang = get_app_setting("default_mini_app_language", "en") or "en"
+        if default_lang not in VALID_UI_LANGUAGES:
+            default_lang = "en"
         return Response(
             render_template(
                 "mini_app.html",
                 mini_app_name=settings.mini_app_name,
                 mini_app_primary_color=settings.mini_app_primary_color,
                 google_maps_sdk_key=settings.google_maps_sdk_key,
+                default_lang=default_lang,
             ),
             mimetype="text/html",
         )

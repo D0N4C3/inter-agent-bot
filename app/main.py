@@ -33,6 +33,7 @@ from app.services import (
     get_applications,
     get_rankings,
     get_stale_drafts,
+    get_training_links,
     is_bot_admin,
     list_territories_for_map,
     mark_draft_reminder_sent,
@@ -239,13 +240,14 @@ def send_post_approval_onboarding(application: dict) -> None:
     chat_id = application.get("telegram_user_id")
     if not chat_id:
         return
+    training_links = get_training_links()
     text = (
         "🎉 Welcome to Inter Ethiopia Solutions!\n\n"
         "Your application has been approved.\n\n"
         "Training materials:\n"
-        f"- Solar installation guide (PDF): {settings.training_pdf_url}\n"
-        f"- Solar installation training video: {settings.training_video_url}\n"
-        f"- Sales playbook: {settings.sales_playbook_url}\n\n"
+        f"- Solar installation guide (PDF): {training_links['pdf']}\n"
+        f"- Solar installation training video: {training_links['video']}\n"
+        f"- Sales playbook: {training_links['sales_playbook']}\n\n"
         "Next steps:\n"
         "1) Review all training materials.\n"
         "2) Reply to this chat confirming completion.\n"
