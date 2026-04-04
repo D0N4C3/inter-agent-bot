@@ -8,7 +8,7 @@ class ScoreResult:
 
 
 def score_application(payload: dict) -> ScoreResult:
-    address_complete = all(payload.get(field) for field in ["region", "zone", "woreda", "kebele", "village", "phone"])
+    address_complete = all(payload.get(field) for field in ["region", "zone", "woreda", "preferred_territory", "phone"])
     experience_years = int(payload.get("experience_years") or 0)
     work_type = str(payload.get("work_type", "")).lower()
 

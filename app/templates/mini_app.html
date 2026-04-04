@@ -568,6 +568,9 @@
     if (tabName === 'territories' && map) {
       setTimeout(() => google.maps.event.trigger(map, 'resize'), 100);
     }
+    if (tabName === 'agent' && miniSession?.telegram_user_id) {
+      loadDashboard().catch(() => {});
+    }
   }
 
   document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
@@ -849,9 +852,52 @@
     try {
       const res = await submitRegistration();
       const data = await res.json();
-      setResult(data.ok ? t('registration_success') : data);
+      if (data.ok) {
+        resetRegistrationForm();
+        await loadDashboard();
+        switchTab('agent');
+        setResult(t('registration_success'));
+      } else {
+        setResult(data);
+      }
     } catch(e) { setResult({ok:false, error:e.message || t('submission_failed')}); }
     finally { setBtnLoading(btn, false); }
+  }
+
+  function resetRegistrationForm() {
+    const defaults = {
+      full_name: '',
+      phone: '',
+      applicant_type: 'sales_installer',
+      region: '',
+      zone: '',
+      woreda: '',
+      preferred_territory: 'yes',
+      experience: 'true',
+      experience_years: '0',
+      work_type: '',
+      has_shop: 'true',
+      business_name: '',
+      business_type: '',
+      business_years: '0',
+      business_customers_weekly: '0',
+      can_install: 'true',
+      id_file_front: '',
+      id_file_back: '',
+      profile_photo: '',
+    };
+    Object.entries(defaults).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (!element) return;
+      if (element.tagName === 'SELECT') {
+        element.value = value;
+      } else {
+        element.value = value;
+      }
+    });
+    pickedLatLng = null;
+    refreshLocationSelects();
+    toggleBusinessQuestions();
   }
 
   // ── Dashboard ─────────────────────────────────────
