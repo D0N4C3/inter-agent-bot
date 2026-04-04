@@ -8,6 +8,7 @@ from app.services import (
     create_performance_event,
     get_agent_dashboard,
     get_application,
+    get_training_links,
     get_rankings,
     update_agent_profile,
     upsert_training_progress,
@@ -26,11 +27,7 @@ def register_agent_routes(blueprint: Blueprint) -> None:
         if not dashboard:
             return {"ok": False, "error": "Agent not found"}, 404
 
-        dashboard["training_links"] = {
-            "pdf": settings.training_pdf_url,
-            "video": settings.training_video_url,
-            "sales_playbook": settings.sales_playbook_url,
-        }
+        dashboard["training_links"] = get_training_links()
         return {"ok": True, "dashboard": dashboard}
 
     @blueprint.patch("/api/agent/dashboard/<telegram_user_id>/profile")

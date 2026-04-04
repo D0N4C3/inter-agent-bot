@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from io import StringIO
+import uuid
 
 from flask import Blueprint, Response, redirect, render_template, request
 
@@ -28,6 +29,10 @@ from app.services import (
     upsert_training_progress,
     create_performance_event,
     create_territory,
+    get_training_links,
+    list_app_settings,
+    upsert_app_setting,
+    upload_telegram_file,
 )
 from app.web.auth import require_admin
 from app.web.constants import EXPORT_FIELDNAMES, VALID_PERFORMANCE_LEVELS
@@ -48,6 +53,8 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
         drafts = list_application_drafts()
         performance_events = list_performance_events(application_id=request.args.get("application_id"))
         training_progress = list_training_progress(application_id=request.args.get("application_id"))
+        app_settings = list_app_settings()
+        training_links = get_training_links()
 
         rows = []
         for app_row in apps:
@@ -80,9 +87,44 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 drafts=drafts,
                 performance_events=performance_events,
                 training_progress=training_progress,
+                app_settings=app_settings,
+                training_links=training_links,
+                mini_app_default_language=next((item.get("setting_value") for item in app_settings if item.get("setting_key") == "default_mini_app_language"), "en"),
             ),
             mimetype="text/html",
         )
+
+    @blueprint.post("/admin/settings")
+    def admin_upsert_settings():
+        require_admin()
+        form = request.form
+        updated_by = str(form.get("updated_by") or "").strip() or None
+        for key in ("training_pdf_url", "training_video_url", "sales_playbook_url", "default_mini_app_language"):
+            value = str(form.get(key) or "").strip()
+            if value:
+                upsert_app_setting(setting_key=key, setting_value=value, updated_by=updated_by)
+        token = request.args.get("token")
+        return redirect(f"/admin?token={token}" if token else "/admin", code=303)
+
+    @blueprint.post("/admin/settings/training-materials/upload")
+    def admin_upload_training_material():
+        require_admin()
+        material_key = str(request.form.get("material_key") or "").strip()
+        file = request.files.get("file")
+        if file and material_key in {"training_pdf_url", "training_video_url", "sales_playbook_url"}:
+            content_type = (file.content_type or "application/octet-stream").lower()
+            extension = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "bin"
+            storage_name = f"{material_key}-{uuid.uuid4().hex}.{extension}"
+            url = upload_telegram_file(
+                file_bytes=file.read(),
+                folder="training_materials",
+                filename=storage_name,
+                content_type=content_type,
+                upsert=False,
+            )
+            upsert_app_setting(setting_key=material_key, setting_value=url)
+        token = request.args.get("token")
+        return redirect(f"/admin?token={token}" if token else "/admin", code=303)
 
     @blueprint.post("/admin/applications/<application_id>/status")
     def admin_update_status(application_id: str):

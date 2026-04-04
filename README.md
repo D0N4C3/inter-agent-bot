@@ -6,6 +6,7 @@ Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 - Territory conflict detection before submission and via `/territory` command.
 - Qualification scoring with stronger candidate auto-flagging.
 - Admin dashboard for operations and approvals.
+- Admin runtime settings for training materials + mini-app default language.
 - Territory locking on approval.
 - Post-approval onboarding message (welcome + training + next steps).
 - Agent lifecycle fields: agent tag, performance potential, internal remarks.
@@ -75,6 +76,7 @@ Background job endpoint:
 
 - `GET /mini-app` — premium Telegram mini app for the full workflow:
   all agent/installer data entry via UI forms + map + dashboards.
+  now includes a language selector (English/Amharic).
 - `POST /api/mini-app/register` — register directly from mini app payload.
 - `POST /api/mini-app/upload` — upload ID/profile files from device storage.
 - `GET /api/territories/map` — map dataset (with coordinates, availability).
@@ -100,6 +102,7 @@ Features:
 - Assign territory while approving
 - Add internal notes
 - Track agent tagging and performance potential
+- Manage training material links and upload files from admin dashboard
 - Export dashboard data as CSV/Excel
 
 ## 5) Supabase SQL

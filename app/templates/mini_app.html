@@ -27,6 +27,13 @@
         <div class="sidebar-icon">⚡</div>
         <div class="sidebar-name">{{ mini_app_name }}</div>
       </div>
+      <div class="field" style="margin:8px 0 0 0;">
+        <label style="font-size:12px;opacity:.8;">Language</label>
+        <select id="languagePicker">
+          <option value="en">English</option>
+          <option value="am">አማርኛ</option>
+        </select>
+      </div>
       <div class="user-chip">
         <div class="user-avatar">👤</div>
         <div class="user-name" id="welcomeUser">Loading…</div>
@@ -334,8 +341,44 @@
   const tgInitData = tg?.initData || '';
   const tgUser = tg?.initDataUnsafe?.user || null;
   let miniSession = null;
+  const defaultLanguage = '{{ default_lang }}';
+  let currentLanguage = localStorage.getItem('mini_app_language') || defaultLanguage || 'en';
+  const MINI_I18N = {
+    en: {
+      registration: 'Registration',
+      territories: 'Territory Map',
+      agent: 'My Dashboard',
+      training: 'Training',
+      rankings: 'Rankings',
+      performance: 'Performance'
+    },
+    am: {
+      registration: 'ምዝገባ',
+      territories: 'ክልል ካርታ',
+      agent: 'ዳሽቦርድ',
+      training: 'ስልጠና',
+      rankings: 'ደረጃ',
+      performance: 'አፈጻጸም'
+    }
+  };
 
   if (tg) { tg.ready(); tg.expand(); }
+
+  function applyLanguage(lang) {
+    const labels = MINI_I18N[lang] || MINI_I18N.en;
+    document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn => {
+      const key = btn.dataset.tab;
+      const textTarget = btn.querySelector('.bnav-label') || btn;
+      const icon = btn.querySelector('.tab-icon,.bnav-icon');
+      if (!labels[key] || !textTarget) return;
+      if (btn.classList.contains('bnav-btn')) {
+        textTarget.textContent = labels[key];
+      } else {
+        const iconText = icon ? icon.outerHTML : '';
+        btn.innerHTML = `${iconText}${labels[key]}`;
+      }
+    });
+  }
 
   // ── Toast notifications ────────────────────────────
   function showToast(msg, type = 'success') {
@@ -631,6 +674,7 @@
         work_type:          document.getElementById('work_type').value,
         has_shop:           asBool('has_shop'),
         can_install:        asBool('can_install'),
+        language:           currentLanguage,
         id_file_front_url:  idFrontUrl,
         id_file_back_url:   idBackUrl,
         profile_photo_url:  profilePhotoUrl,
@@ -813,6 +857,17 @@
       if (miniSession.is_admin) {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
       }
+      const languagePicker = document.getElementById('languagePicker');
+      if (languagePicker) {
+        languagePicker.value = currentLanguage;
+        languagePicker.addEventListener('change', () => {
+          currentLanguage = languagePicker.value;
+          localStorage.setItem('mini_app_language', currentLanguage);
+          applyLanguage(currentLanguage);
+          showToast(currentLanguage === 'am' ? 'ቋንቋ ተቀይሯል' : 'Language updated', 'info');
+        });
+      }
+      applyLanguage(currentLanguage);
       await loadLocationOptions();
       document.getElementById('region')?.addEventListener('change', refreshLocationSelects);
       document.getElementById('zone')?.addEventListener('change', refreshLocationSelects);
