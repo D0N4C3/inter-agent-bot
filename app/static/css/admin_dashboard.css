@@ -1,0 +1,79 @@
+body {
+  font-family: Inter, Arial, sans-serif;
+  background: #f4f7fb;
+  color: #1b2430;
+  margin: 0;
+  padding: 24px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 8px 20px rgba(27, 36, 48, 0.08);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e9eef5;
+  padding: 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  background: #f8fafe;
+}
+
+.uploads {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.thumb {
+  width: 74px;
+  height: 74px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #d7e0ed;
+}
+
+.status-badge {
+  background: #ebf5ff;
+  color: #165dff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+select,
+button {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #d7e0ed;
+}
+
+button {
+  background: #165dff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.muted {
+  color: #8a94a3;
+}

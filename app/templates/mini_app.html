@@ -3,107 +3,7 @@
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{{ mini_app_name }}</title>
-      <style>
-        :root {
-          --brand: {{ mini_app_primary_color }};
-          --bg: #0f172a;
-          --card: rgba(15, 23, 42, 0.62);
-          --line: rgba(148, 163, 184, 0.28);
-          --text: #e2e8f0;
-          --muted: #94a3b8;
-          --ok: #16a34a;
-          --warn: #eab308;
-          --danger: #dc2626;
-        }
-        * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          font-family: Inter, ui-sans-serif, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-          color: var(--text);
-          background:
-            radial-gradient(circle at 20% 0%, rgba(59,130,246,.24), transparent 40%),
-            radial-gradient(circle at 80% 10%, rgba(34,197,94,.14), transparent 35%),
-            linear-gradient(180deg, #020617 0%, #0b1120 70%, #020617 100%);
-          min-height: 100vh;
-          padding: 20px;
-        }
-        .shell { max-width: 1200px; margin: 0 auto; }
-        .hero {
-          display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-          margin-bottom: 16px;
-        }
-        .hero-card {
-          background: linear-gradient(140deg, rgba(30,41,59,.85), rgba(15,23,42,.7));
-          border: 1px solid var(--line);
-          border-radius: 18px;
-          padding: 18px;
-          flex: 1;
-          min-width: 260px;
-          box-shadow: 0 16px 35px rgba(0,0,0,.3);
-        }
-        .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-        .kpi { border: 1px solid var(--line); border-radius: 14px; padding: 10px; background: rgba(15,23,42,.45); }
-        .kpi b { display: block; font-size: 18px; margin-bottom: 4px; }
-        .grid { display: grid; grid-template-columns: 260px 1fr; gap: 14px; }
-        .nav, .panel {
-          border: 1px solid var(--line);
-          border-radius: 16px;
-          background: var(--card);
-          backdrop-filter: blur(8px);
-        }
-        .nav { padding: 10px; position: sticky; top: 12px; height: fit-content; }
-        .nav button {
-          width: 100%;
-          margin: 6px 0;
-          border-radius: 10px;
-          border: 1px solid var(--line);
-          background: rgba(15,23,42,.5);
-          color: var(--text);
-          font-weight: 600;
-          padding: 10px;
-          cursor: pointer;
-          text-align: left;
-        }
-        .nav button.active { background: linear-gradient(90deg, var(--brand), #1d4ed8); border-color: transparent; }
-        .panel { padding: 16px; }
-        .tab { display: none; }
-        .tab.active { display: block; }
-        .section-title { margin: 0 0 8px; font-size: 20px; }
-        .muted { color: var(--muted); font-size: 14px; margin-top: 0; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
-        label { font-size: 12px; color: #cbd5e1; display: block; margin-bottom: 4px; }
-        input, select, textarea, button {
-          width: 100%;
-          border: 1px solid var(--line);
-          border-radius: 10px;
-          background: rgba(15,23,42,.48);
-          color: var(--text);
-          padding: 10px;
-        }
-        textarea { min-height: 92px; resize: vertical; }
-        button {
-          background: linear-gradient(90deg, var(--brand), #1d4ed8);
-          border: 0;
-          font-weight: 700;
-          cursor: pointer;
-        }
-        .secondary { background: rgba(15,23,42,.4); border: 1px solid var(--line); }
-        #map { height: 280px; border-radius: 14px; margin: 12px 0; border: 1px solid var(--line); }
-        pre {
-          white-space: pre-wrap; word-break: break-word; font-size: 12px;
-          background: rgba(2,6,23,.6); border: 1px solid var(--line); border-radius: 10px; padding: 10px;
-        }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; }
-        .pill { padding: 3px 9px; border-radius: 999px; font-size: 12px; display: inline-block; }
-        .ok { background: rgba(22,163,74,.2); color: #86efac; }
-        .warn { background: rgba(234,179,8,.18); color: #fde047; }
-        .danger { background: rgba(220,38,38,.2); color: #fecaca; }
-        @media (max-width: 860px) {
-          .grid { grid-template-columns: 1fr; }
-          .nav { position: static; }
-        }
-      </style>
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/mini_app.css') }}" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     </head>
@@ -111,14 +11,14 @@
       <div class="shell">
         <div class="hero">
           <div class="hero-card">
-            <h2 style="margin-top:0">⚡ {{ mini_app_name }}</h2>
+            <h2 class="hero-title">⚡ {{ mini_app_name }}</h2>
             <p class="muted">Manage your application, territory insights, training, and rankings with a cleaner user experience.</p>
             <div class="kpis">
               <div class="kpi"><b id="kpiTerritories">0</b><span class="muted">Mapped territories</span></div>
               <div class="kpi"><b id="kpiOpen">0</b><span class="muted">Open territories</span></div>
               <div class="kpi"><b id="kpiLocked">0</b><span class="muted">Locked territories</span></div>
             </div>
-            <p class="muted" id="welcomeUser" style="margin-bottom:0"></p>
+            <p class="muted hero-muted" id="welcomeUser"></p>
           </div>
         </div>
         <div class="grid">
@@ -127,7 +27,7 @@
             <button class="tab-btn" data-tab="territories">🗺 Territory Intelligence</button>
             <button class="tab-btn" data-tab="agent">👤 Agent Dashboard</button>
             <button class="tab-btn" data-tab="training">🎓 Training Progress</button>
-            <button class="tab-btn admin-only" data-tab="performance" style="display:none">📈 Performance Input</button>
+            <button class="tab-btn admin-only hidden-admin" data-tab="performance">📈 Performance Input</button>
             <button class="tab-btn" data-tab="rankings">🏆 Rankings</button>
           </aside>
           <main class="panel">
@@ -198,7 +98,7 @@
                 <div><label>Event type</label><select id="perf_event_type"><option value="sale_closed">Sale Closed</option><option value="installer_job_completed">Installer Job Completed</option><option value="training_completed">Training Completed</option></select></div>
                 <div><label>Event value</label><input id="perf_event_value" type="number" value="1" step="0.01" /></div>
                 <div><label>Occurred at (ISO optional)</label><input id="perf_occurred_at" placeholder="2026-04-04T12:00:00Z" /></div>
-                <div style="grid-column: 1 / -1"><label>Metadata JSON</label><textarea id="perf_metadata">{}</textarea></div>
+                <div class="full-span"><label>Metadata JSON</label><textarea id="perf_metadata">{}</textarea></div>
               </div>
               <button onclick="submitPerformance()">Submit Event</button>
             </section>
@@ -209,12 +109,15 @@
               <div id="rankingsContainer"></div>
             </section>
 
-            <h4 style="margin-bottom:8px">Status</h4>
+            <h4 class="status-title">Status</h4>
             <pre id="result">Loading mini app context...</pre>
           </main>
         </div>
       </div>
       <script src="https://telegram.org/js/telegram-web-app.js"></script>
+      <script>
+        document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
+      </script>
       <script>
         const tg = window.Telegram?.WebApp;
         const tgInitData = tg?.initData || '';

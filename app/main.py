@@ -7,7 +7,6 @@ import secrets
 import asyncio
 import hashlib
 import hmac
-import json
 from urllib.parse import parse_qsl
 from datetime import datetime, timezone
 from html import escape
@@ -19,6 +18,7 @@ from io import StringIO
 from flask import Flask, Response, abort, redirect, request
 
 from app.config import settings
+from app.i18n import load_translations
 from app.scoring import score_application
 from app.services import (
     add_bot_admin,
@@ -72,28 +72,7 @@ YES_NO_KEYBOARD = [["Yes", "No"]]
 YES_NO_KEYBOARD_AM = [["አዎ", "አይደለም"]]
 LANGUAGE_KEYBOARD = [["English", "አማርኛ"]]
 
-I18N = {
-    "en": {
-        "welcome": "Welcome to Inter Ethiopia Solutions Agent Registration Bot\n\nPlease choose your application type below.",
-        "support": "For support, contact Inter Ethiopia Solutions\nEmail: agentapply@internethiopia.com\nPhone: +251XXXXXXXXX\nWhatsApp: +251XXXXXXXXX",
-        "choose_language": "Please choose your language / ቋንቋ ይምረጡ",
-        "resume_prompt": "You have an incomplete application. Would you like to resume where you stopped?",
-        "resume_yes": "Resume Application",
-        "resume_no": "Start New Application",
-        "submitted": "Your application has been submitted successfully.",
-        "timeline": settings.expected_review_timeline,
-    },
-    "am": {
-        "welcome": "እንኳን ወደ Inter Ethiopia Solutions የወኪል ምዝገባ ቦት በደህና መጡ።\n\nእባክዎ የማመልከቻ አይነት ይምረጡ።",
-        "support": "ለእገዛ Inter Ethiopia Solutions ያግኙ\nኢሜይል: agentapply@internethiopia.com\nስልክ: +251XXXXXXXXX\nዋትስአፕ: +251XXXXXXXXX",
-        "choose_language": "Please choose your language / ቋንቋ ይምረጡ",
-        "resume_prompt": "ያልተጠናቀቀ ማመልከቻ አለዎት። ከተወውበት ቦታ መቀጠል ይፈልጋሉ?",
-        "resume_yes": "ማመልከቻ ቀጥል",
-        "resume_no": "አዲስ ጀምር",
-        "submitted": "ማመልከቻዎ በተሳካ ሁኔታ ተልኳል።",
-        "timeline": "ቡድናችን በ3-5 የስራ ቀናት ውስጥ ምላሽ ይሰጣል።",
-    },
-}
+I18N = load_translations()
 
 
 def tr(user_id: int, key: str) -> str:
