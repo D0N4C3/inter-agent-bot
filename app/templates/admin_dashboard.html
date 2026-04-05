@@ -19,8 +19,11 @@
     </div>
   </div>
   <div class="header-actions">
-    <a href="/admin/export.csv?token={{ token }}" class="btn btn-ghost">↓ CSV</a>
-    <a href="/admin/export.xlsx?token={{ token }}" class="btn btn-ghost">↓ Excel</a>
+    <a href="/admin/export.csv" class="btn btn-ghost">↓ CSV</a>
+    <a href="/admin/export.xlsx" class="btn btn-ghost">↓ Excel</a>
+    <form method="post" action="/admin/logout">
+      <button class="btn btn-cancel-edit" type="submit">Logout</button>
+    </form>
   </div>
 </header>
 
@@ -29,7 +32,6 @@
     <div class="card-header"><span class="card-title">Filter Applications</span></div>
     <div class="filter-body">
       <form method="get" action="/admin">
-        <input type="hidden" name="token" value="{{ token }}" />
         <div class="filter-fields">
           <div class="field-wrap">
             <label>Region</label>
@@ -85,7 +87,7 @@
           <tr class="edit-panel" id="edit-{{ a.application_id }}" style="display:none">
             <td colspan="6">
               <div class="edit-form-inner">
-                <form method="post" action="/admin/applications/{{ a.application_id }}/status?token={{ token }}">
+                <form method="post" action="/admin/applications/{{ a.application_id }}/status">
                   <div class="edit-grid">
                     <div class="edit-field"><label>Status</label><select name="status">{% for s in valid_statuses %}<option value="{{ s }}" {% if a.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
                     <div class="edit-field"><label>Agent Tag</label><select name="agent_tag">{% for tag in valid_agent_tags %}<option value="{{ tag }}" {% if a.agent_tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}</select></div>
@@ -109,7 +111,7 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Platform Settings</span><span class="card-meta">{{ app_settings|length }}</span></div>
       <div class="module-body">
-        <form method="post" action="/admin/settings?token={{ token }}" class="stack-form">
+        <form method="post" action="/admin/settings" class="stack-form">
           <input name="training_pdf_url" placeholder="Training PDF URL" value="{{ training_links.pdf }}" />
           <input name="training_video_url" placeholder="Training video URL" value="{{ training_links.video }}" />
           <input name="sales_playbook_url" placeholder="Sales playbook URL" value="{{ training_links.sales_playbook }}" />
@@ -122,7 +124,7 @@
           <input name="updated_by" placeholder="Updated by (optional)" />
           <button class="btn btn-primary" type="submit">Save Settings</button>
         </form>
-        <form method="post" action="/admin/settings/training-materials/upload?token={{ token }}" class="stack-form" enctype="multipart/form-data">
+        <form method="post" action="/admin/settings/training-materials/upload" class="stack-form" enctype="multipart/form-data">
           <select name="material_key">
             <option value="training_pdf_url">Upload Training PDF</option>
             <option value="training_video_url">Upload Training Video</option>
@@ -137,7 +139,7 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Territories (CRUD)</span><span class="card-meta">{{ territories|length }}</span></div>
       <div class="module-body">
-        <form method="post" action="/admin/territories?token={{ token }}" class="stack-form">
+        <form method="post" action="/admin/territories" class="stack-form">
           <select id="territory-region" name="region" class="premium-select custom-select" data-custom-target="custom-region" required>
             <option value="" selected disabled>Select region</option>
             {% for item in known_regions %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
@@ -162,13 +164,13 @@
           <button class="btn btn-primary" type="submit">Create Territory</button>
         </form>
         {% for t in territories[:15] %}
-        <form method="post" action="/admin/territories/{{ t.territory_id }}?token={{ token }}" class="inline-form">
+        <form method="post" action="/admin/territories/{{ t.territory_id }}" class="inline-form">
           <span>{{ t.region }} / {{ t.zone }} / {{ t.village }}</span>
           <select name="availability_status" class="premium-select">{% for s in valid_territory_availability %}<option value="{{ s }}" {% if t.availability_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
           <label><input type="checkbox" name="is_locked" {% if t.is_locked %}checked{% endif %}/> locked</label>
           <button class="btn btn-edit" type="submit">Update</button>
         </form>
-        <form method="post" action="/admin/territories/{{ t.territory_id }}/delete?token={{ token }}"><button class="btn btn-cancel-edit" type="submit">Delete</button></form>
+        <form method="post" action="/admin/territories/{{ t.territory_id }}/delete"><button class="btn btn-cancel-edit" type="submit">Delete</button></form>
         {% endfor %}
       </div>
     </div>
@@ -176,13 +178,13 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Bot Admins (CRUD)</span><span class="card-meta">{{ admins|length }}</span></div>
       <div class="module-body">
-        <form method="post" action="/admin/bot-admins?token={{ token }}" class="stack-form">
+        <form method="post" action="/admin/bot-admins" class="stack-form">
           <input name="telegram_user_id" placeholder="Telegram user id" required />
           <input name="created_by" placeholder="Created by" />
           <button class="btn btn-primary" type="submit">Add Admin</button>
         </form>
         {% for admin in admins %}
-          <form method="post" action="/admin/bot-admins/{{ admin.telegram_user_id }}/delete?token={{ token }}" class="inline-form">
+          <form method="post" action="/admin/bot-admins/{{ admin.telegram_user_id }}/delete" class="inline-form">
             <span>{{ admin.telegram_user_id }} · {{ admin.created_at }}</span>
             <button class="btn btn-cancel-edit" type="submit">Delete</button>
           </form>
@@ -193,14 +195,14 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Performance Events (CRUD)</span><span class="card-meta">{{ performance_events|length }}</span></div>
       <div class="module-body">
-        <form method="post" action="/admin/performance-events?token={{ token }}" class="stack-form">
+        <form method="post" action="/admin/performance-events" class="stack-form">
           <input name="application_id" placeholder="Application ID" required />
           <select name="event_type">{% for t in valid_performance_event_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
           <input name="event_value" type="number" step="0.01" placeholder="Value" required />
           <button class="btn btn-primary" type="submit">Create Event</button>
         </form>
         {% for event in performance_events[:20] %}
-          <form method="post" action="/admin/performance-events/{{ event.event_id }}/delete?token={{ token }}" class="inline-form">
+          <form method="post" action="/admin/performance-events/{{ event.event_id }}/delete" class="inline-form">
             <span>{{ event.application_id }} · {{ event.event_type }} · {{ event.event_value }}</span>
             <button class="btn btn-cancel-edit" type="submit">Delete</button>
           </form>
@@ -211,14 +213,14 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Training Progress (CRUD)</span><span class="card-meta">{{ training_progress|length }}</span></div>
       <div class="module-body">
-        <form method="post" action="/admin/training-progress?token={{ token }}" class="stack-form">
+        <form method="post" action="/admin/training-progress" class="stack-form">
           <input name="application_id" placeholder="Application ID" required />
           <input name="module_key" placeholder="Module key" required />
           <label><input type="checkbox" name="completed" /> Completed</label>
           <button class="btn btn-primary" type="submit">Save Progress</button>
         </form>
         {% for progress in training_progress[:20] %}
-          <form method="post" action="/admin/training-progress/{{ progress.progress_id }}/delete?token={{ token }}" class="inline-form">
+          <form method="post" action="/admin/training-progress/{{ progress.progress_id }}/delete" class="inline-form">
             <span>{{ progress.application_id }} · {{ progress.module_key }} · {{ progress.completed }}</span>
             <button class="btn btn-cancel-edit" type="submit">Delete</button>
           </form>
@@ -231,7 +233,7 @@
     <div class="card-header"><span class="card-title">Application Drafts (CRUD)</span><span class="card-meta">{{ drafts|length }}</span></div>
     <div class="module-body">
       {% for draft in drafts %}
-      <form method="post" action="/admin/drafts/{{ draft.telegram_user_id }}/delete?token={{ token }}" class="inline-form">
+      <form method="post" action="/admin/drafts/{{ draft.telegram_user_id }}/delete" class="inline-form">
         <span>{{ draft.telegram_user_id }} · {{ draft.applicant_type }} · step {{ draft.step_index }} · {{ draft.updated_at }}</span>
         <button class="btn btn-cancel-edit" type="submit">Delete draft</button>
       </form>

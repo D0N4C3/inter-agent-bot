@@ -53,6 +53,7 @@ from app.services import (
 app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
+app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
