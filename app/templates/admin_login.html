@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Login — Inter Ethiopia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0b1220;
+      color: #e5ecff;
+      font-family: "Sora", sans-serif;
+    }
+    .card {
+      width: min(440px, 92vw);
+      background: #131d35;
+      border: 1px solid #243152;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+    }
+    p {
+      margin: 0 0 18px;
+      color: #9db1df;
+      font-size: 0.9rem;
+    }
+    form {
+      display: grid;
+      gap: 12px;
+    }
+    input {
+      border: 1px solid #33456f;
+      background: #0d162c;
+      color: #f5f8ff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #2f77ff;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .error {
+      margin-top: 12px;
+      color: #ffb4b4;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Admin Dashboard Login</h1>
+    <p>Sign in using an existing Supabase user account. New account registration is disabled here.</p>
+    <form method="post" action="/admin/login">
+      <input name="email" type="email" placeholder="Email" autocomplete="username" required />
+      <input name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      <button type="submit">Login</button>
+    </form>
+    {% if error_message %}
+      <div class="error">{{ error_message }}</div>
+    {% endif %}
+  </main>
+</body>
+</html>

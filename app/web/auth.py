@@ -3,20 +3,63 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from datetime import datetime, timezone
 from urllib.parse import parse_qsl
 
-from flask import abort, request
+from flask import abort, request, session
 
 from app.config import settings
-from app.services import is_bot_admin
+from app.services import get_supabase, is_bot_admin
+
+ADMIN_SESSION_KEY = "admin_auth"
+
+
+def _session_is_valid(payload: dict | None) -> bool:
+    if not payload:
+        return False
+    expires_at = payload.get("expires_at")
+    if not isinstance(expires_at, (int, float)):
+        return False
+    now = datetime.now(timezone.utc).timestamp()
+    return expires_at > now
+
+
+def is_admin_authenticated() -> bool:
+    expected = settings.admin_dashboard_token
+    provided = request.args.get("token") or request.headers.get("x-admin-token")
+    if expected and provided == expected:
+        return True
+    return _session_is_valid(session.get(ADMIN_SESSION_KEY))
+
+
+def login_admin(email: str, password: str) -> bool:
+    try:
+        client = get_supabase()
+        auth_response = client.auth.sign_in_with_password({"email": email, "password": password})
+        auth_session = getattr(auth_response, "session", None)
+        auth_user = getattr(auth_response, "user", None)
+        access_token = getattr(auth_session, "access_token", None)
+        expires_at = getattr(auth_session, "expires_at", None)
+        user_email = getattr(auth_user, "email", email)
+        if not access_token or not expires_at:
+            return False
+        session[ADMIN_SESSION_KEY] = {
+            "email": user_email,
+            "access_token": access_token,
+            "expires_at": float(expires_at),
+        }
+        session.permanent = True
+        return True
+    except Exception:
+        return False
+
+
+def logout_admin() -> None:
+    session.pop(ADMIN_SESSION_KEY, None)
 
 
 def require_admin() -> None:
-    expected = settings.admin_dashboard_token
-    if not expected:
-        return
-    provided = request.args.get("token") or request.headers.get("x-admin-token")
-    if provided != expected:
+    if not is_admin_authenticated():
         abort(401, description="Unauthorized")
 
 

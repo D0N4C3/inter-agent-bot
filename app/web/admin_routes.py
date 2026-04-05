@@ -35,19 +35,42 @@ from app.services import (
     upsert_app_setting,
     upload_telegram_file,
 )
-from app.web.auth import require_admin
+from app.web.auth import is_admin_authenticated, login_admin, logout_admin, require_admin
 from app.web.constants import EXPORT_FIELDNAMES, VALID_PERFORMANCE_LEVELS
 from app.web.helpers import is_image_url
 
 
 def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
+    @blueprint.get("/admin/login")
+    def admin_login_page() -> Response:
+        if is_admin_authenticated():
+            return redirect("/admin", code=302)
+        return Response(render_template("admin_login.html", error_message=""), mimetype="text/html")
+
+    @blueprint.post("/admin/login")
+    def admin_login_submit() -> Response:
+        email = str(request.form.get("email") or "").strip()
+        password = str(request.form.get("password") or "")
+        if login_admin(email=email, password=password):
+            return redirect("/admin", code=303)
+        return Response(
+            render_template("admin_login.html", error_message="Invalid credentials. Login only; registration is disabled."),
+            mimetype="text/html",
+            status=401,
+        )
+
+    @blueprint.post("/admin/logout")
+    def admin_logout() -> Response:
+        logout_admin()
+        return redirect("/admin/login", code=303)
+
     @blueprint.get("/admin")
     def admin_dashboard() -> Response:
-        require_admin()
+        if not is_admin_authenticated():
+            return redirect("/admin/login", code=302)
         region = request.args.get("region")
         applicant_type = request.args.get("applicant_type")
         status = request.args.get("status")
-        token = request.args.get("token", "")
         apps = get_applications(region=region, applicant_type=applicant_type, status=status)
         territories = list_territories_admin(region=region or None, zone=request.args.get("zone"), woreda=request.args.get("woreda"))
         admins = list_bot_admins()
@@ -83,7 +106,6 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 region=region or "",
                 applicant_type=applicant_type or "",
                 status=status or "",
-                token=token,
                 valid_statuses=sorted(VALID_STATUSES),
                 valid_agent_tags=sorted(VALID_AGENT_TAGS),
                 valid_performance_levels=sorted(VALID_PERFORMANCE_LEVELS),

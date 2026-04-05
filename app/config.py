@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     admin_telegram_chat_id: str | None = None
     admin_dashboard_token: str | None = None
+    flask_secret_key: str | None = None
 
     terms_text: str = (
         "I confirm that the information I provided is correct. "
