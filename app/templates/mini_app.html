@@ -587,12 +587,14 @@
   let map = null;
   let infoWindow = null;
   let territoryMarkers = [];
+  let territoryMarkerCluster = null;
   let pickedLatLng = null;
   let locationRows = [];
   let nearestMarkers = [];
   let agentMarkers = [];
   let dashboardData = null;
   let rankingsData = null;
+  const territoryFetchCache = new Map();
   const darkMapStyles = [
     { elementType: 'geometry', stylers: [{ color: '#111827' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#111827' }] },
@@ -635,57 +637,104 @@
   }
 
   // ── Territory loading ─────────────────────────────
-  async function loadTerritories() {
+  function buildTerritoryFilterQuery() {
     const qp = new URLSearchParams();
     ['region','zone','woreda'].forEach(k => {
       const v = document.getElementById(`filter_${k}`)?.value?.trim();
       if (v) qp.set(k, v);
     });
-    const res = await apiFetch(`/api/territories/map?${qp.toString()}`);
+    qp.set('occupied_only', '1');
+    return qp;
+  }
+
+  async function fetchTerritories(forceRefresh = false) {
+    const qp = buildTerritoryFilterQuery();
+    const cacheKey = qp.toString();
+    if (!forceRefresh && territoryFetchCache.has(cacheKey)) {
+      return territoryFetchCache.get(cacheKey);
+    }
+    const res = await apiFetch(`/api/territories/map?${cacheKey}`);
     const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data?.error || t('failed_load_territories'));
+    }
+    const items = data.items || [];
+    territoryFetchCache.set(cacheKey, items);
+    return items;
+  }
+
+  function clearTerritoryOverlays() {
     territoryMarkers.forEach(m => m.setMap(null));
     territoryMarkers = [];
+    if (territoryMarkerCluster?.clearMarkers) {
+      territoryMarkerCluster.clearMarkers();
+      territoryMarkerCluster = null;
+    }
     agentMarkers.forEach(m => m.setMap(null));
     agentMarkers = [];
-    const items = data.items || [];
-    document.getElementById('kpiTerritories').textContent = items.length;
-    document.getElementById('kpiOpen').textContent   = items.filter(t => !t.is_locked).length;
-    document.getElementById('kpiLocked').textContent = items.filter(t =>  t.is_locked).length;
-    items.forEach(t => {
-      if (t.latitude == null || t.longitude == null) return;
-      const color = t.is_locked ? '#f87171' : '#06d6a0';
+  }
+
+  function getTerritoryOccupancyStatus(territory) {
+    if (territory.assigned_application_id) {
+      return { label: 'Assigned', color: '#ef4444' };
+    }
+    return { label: 'Reserved', color: '#facc15' };
+  }
+
+  function renderMarkers(mapInstance, territories) {
+    clearTerritoryOverlays();
+    const bounds = new google.maps.LatLngBounds();
+    const skippedCoordinates = [];
+    territories.forEach(territory => {
+      const lat = Number(territory.latitude);
+      const lng = Number(territory.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        skippedCoordinates.push(territory.territory_id || territory.village || 'unknown');
+        return;
+      }
+      const status = getTerritoryOccupancyStatus(territory);
       const marker = new google.maps.Marker({
-        map,
-        position: { lat: t.latitude, lng: t.longitude },
-        title: t.village || 'Territory',
+        map: mapInstance,
+        position: { lat, lng },
+        title: territory.village || 'Territory',
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 7,
-          fillColor: color,
+          fillColor: status.color,
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 1.5,
         },
       });
       marker.addListener('click', () => {
-        infoWindow.setContent(`<strong>${t.village}</strong><br>${t.availability_status || (t.is_locked ? '🔒 Locked' : '✓ Open')}`);
-        infoWindow.open({ anchor: marker, map });
+        const territoryName = [territory.region, territory.woreda, territory.village].filter(Boolean).join(' / ')
+          || (territory.village || 'Territory');
+        infoWindow.setContent(`<strong>${territoryName}</strong><br>Status: ${status.label}`);
+        infoWindow.open({ anchor: marker, map: mapInstance });
       });
       territoryMarkers.push(marker);
-      if (t.has_agent) {
-        const agentMarker = new google.maps.Marker({
-          map,
-          position: { lat: t.latitude, lng: t.longitude },
-          title: t.assigned_agent_name || 'Assigned agent',
-          label: '👤',
-        });
-        agentMarker.addListener('click', () => {
-          infoWindow.setContent(`<strong>${t.village}</strong><br>👤 ${t.assigned_agent_name || 'Agent assigned'}`);
-          infoWindow.open({ anchor: agentMarker, map });
-        });
-        agentMarkers.push(agentMarker);
-      }
+      bounds.extend({ lat, lng });
     });
+    if (skippedCoordinates.length) {
+      console.warn('Skipping territories with missing coordinates', skippedCoordinates);
+    }
+    if (territoryMarkers.length > 1) {
+      mapInstance.fitBounds(bounds, 32);
+    }
+    if (window.markerClusterer?.MarkerClusterer && territoryMarkers.length > 50) {
+      territoryMarkerCluster = new window.markerClusterer.MarkerClusterer({
+        map: mapInstance,
+        markers: territoryMarkers,
+      });
+    }
+  }
+
+  async function loadTerritories(forceRefresh = false) {
+    const items = await fetchTerritories(forceRefresh);
+    document.getElementById('kpiTerritories').textContent = items.length;
+    document.getElementById('kpiOpen').textContent   = items.filter(t => !t.is_locked).length;
+    document.getElementById('kpiLocked').textContent = items.filter(t =>  t.is_locked).length;
+    renderMarkers(map, items);
     return items.length;
   }
 
@@ -693,7 +742,7 @@
     setBtnLoading(btn, true, t('refreshing'));
     try {
       if (!map) throw new Error(t('google_maps_unavailable'));
-      const n = await loadTerritories();
+      const n = await loadTerritories(true);
       setResult(t('loaded_territories', { count: n }));
     } catch(e) { setResult({ok:false, error:e.message || t('failed_load_territories')}); }
     finally { setBtnLoading(btn, false); }

@@ -341,11 +341,14 @@ def list_territories_for_map(
     region: str | None = None,
     zone: str | None = None,
     woreda: str | None = None,
+    occupied_only: bool = False,
 ) -> list[dict]:
     client = get_supabase()
     query = client.table("territories").select(
         "territory_id,region,zone,woreda,kebele,village,latitude,longitude,is_locked,availability_status,assigned_application_id"
     )
+    if occupied_only:
+        query = query.or_("is_locked.eq.true,assigned_application_id.not.is.null")
     if region:
         query = query.eq("region", region)
     if zone:

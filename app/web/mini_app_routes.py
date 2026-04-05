@@ -123,10 +123,12 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
 
     @blueprint.get("/api/territories/map")
     def territories_map() -> dict:
+        occupied_only = request.args.get("occupied_only", "").lower() in {"1", "true", "yes"}
         items = list_territories_for_map(
             region=request.args.get("region"),
             zone=request.args.get("zone"),
             woreda=request.args.get("woreda"),
+            occupied_only=occupied_only,
         )
         return {"ok": True, "items": items}
 
