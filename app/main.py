@@ -9,6 +9,7 @@ import os
 import hashlib
 import hmac
 import json
+import sqlite3
 from collections import Counter
 from multiprocessing import current_process
 from urllib.parse import parse_qsl
@@ -63,6 +64,7 @@ app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or 
 BOOT_TIMESTAMP = datetime.now(timezone.utc).isoformat()
 PROCESS_PID = os.getpid()
 WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
+REGISTRATION_STATE_DB_PATH = os.getenv("REGISTRATION_STATE_DB_PATH", "/tmp/inter_registration_state.db")
 
 
 def create_telegram_bot() -> Bot:
@@ -88,14 +90,69 @@ def log_registration_step(user_id: int, session: dict, reason: str) -> None:
 
 
 def persist_registration_state(user_id: int, session: dict) -> None:
-    """Optional next step: persist in DB/Redis keyed by telegram_user_id."""
-    logger.debug(
-        "registration-state-persist-not-configured worker=%s pid=%s user_id=%s fingerprint=%s",
-        WORKER_IDENTIFIER,
-        PROCESS_PID,
-        user_id,
-        session_fingerprint(session),
-    )
+    with sqlite3.connect(REGISTRATION_STATE_DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS registration_sessions (
+                telegram_user_id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO registration_sessions (telegram_user_id, payload, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(telegram_user_id) DO UPDATE SET
+                payload=excluded.payload,
+                updated_at=excluded.updated_at
+            """,
+            (str(user_id), json.dumps(session, ensure_ascii=False), datetime.now(timezone.utc).isoformat()),
+        )
+
+
+def load_registration_state(user_id: int) -> dict | None:
+    with sqlite3.connect(REGISTRATION_STATE_DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS registration_sessions (
+                telegram_user_id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        row = conn.execute(
+            "SELECT payload FROM registration_sessions WHERE telegram_user_id = ?",
+            (str(user_id),),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        payload = json.loads(row[0])
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def clear_registration_state(user_id: int) -> None:
+    with sqlite3.connect(REGISTRATION_STATE_DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS registration_sessions (
+                telegram_user_id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute("DELETE FROM registration_sessions WHERE telegram_user_id = ?", (str(user_id),))
+
+
+def drop_registration_session(user_id: int) -> None:
+    sessions.pop(user_id, None)
+    clear_registration_state(user_id)
 
 
 logger.info(
@@ -191,6 +248,11 @@ def fallback_match_reason(user_id: int, text: str | None) -> str:
 
 
 def registration_in_progress(user_id: int) -> bool:
+    if user_id not in sessions:
+        persisted = load_registration_state(user_id)
+        if persisted:
+            sessions[user_id] = persisted
+
     session = sessions.get(user_id, {})
     if session.get("registration_active"):
         return True
@@ -499,7 +561,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     send_notification_email(record)
     send_admin_telegram_alert(record)
     await send_message(chat_id, f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}")
-    sessions.pop(user_id, None)
+    drop_registration_session(user_id)
 
 
 async def process_registration_input(chat_id: int, user_id: int, text: str | None, message: dict) -> None:
@@ -591,7 +653,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = int(value)
     elif field == "terms":
         if value.lower() in {"cancel", "ሰርዝ"}:
-            sessions.pop(user_id, None)
+            drop_registration_session(user_id)
             await send_message(chat_id, tr(user_id, "application_cancelled"))
             return
         if value.lower() not in {"i agree", "እስማማለሁ"}:
@@ -788,6 +850,7 @@ async def _telegram_webhook(update: Update) -> dict:
             sessions[user_id]["language"] = sessions[user_id].get("language", "en")
             sessions[user_id]["awaiting_language"] = True
             sessions[user_id]["registration_active"] = False
+            persist_registration_state(user_id, sessions[user_id])
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return _log_route("start_command")
 
@@ -795,6 +858,7 @@ async def _telegram_webhook(update: Update) -> dict:
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = LANGUAGE_LABELS[text]
             sessions[user_id]["awaiting_language"] = False
+            persist_registration_state(user_id, sessions[user_id])
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
             return _log_route("language_selected")
 
@@ -802,6 +866,7 @@ async def _telegram_webhook(update: Update) -> dict:
             log_non_registration_route(user_id, text, "/language", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["awaiting_language"] = True
+            persist_registration_state(user_id, sessions[user_id])
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return _log_route("language_command")
 
