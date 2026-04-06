@@ -195,13 +195,19 @@ def get_training_links(language: str | None = None) -> dict[str, str]:
     }
 
 
-def list_woreda_regions(region: str | None = None, zone: str | None = None) -> list[dict]:
+def list_woreda_regions(
+    region: str | None = None,
+    zone: str | None = None,
+    woreda: str | None = None,
+) -> list[dict]:
     client = get_supabase()
     query = client.table("woreda_regions").select("sl_no,woreda,zone,region,latitude,longitude").order("sl_no")
     if region:
         query = query.eq("region", region)
     if zone:
         query = query.eq("zone", zone)
+    if woreda:
+        query = query.eq("woreda", woreda)
     return query.limit(5000).execute().data or []
 
 
@@ -481,24 +487,91 @@ def list_territories_for_map(
     query = client.table("territories").select(
         "territory_id,region,zone,woreda,village,latitude,longitude,is_locked,availability_status,assigned_application_id"
     )
-    if occupied_only:
-        query = query.or_("is_locked.eq.true,assigned_application_id.not.is.null")
     if region:
         query = query.eq("region", region)
     if zone:
         query = query.eq("zone", zone)
     if woreda:
         query = query.eq("woreda", woreda)
-    rows = query.limit(500).execute().data or []
-    woreda_region_rows = list_woreda_regions(region=region, zone=zone)
-    woreda_coordinates = {
-        (
+    territory_rows = query.limit(5000).execute().data or []
+    woreda_region_rows = list_woreda_regions(region=region, zone=zone, woreda=woreda)
+    woreda_rows: list[dict] = []
+    woreda_index: dict[tuple[str, str, str], dict] = {}
+
+    for item in woreda_region_rows:
+        key = (
             (item.get("region") or "").strip().lower(),
             (item.get("zone") or "").strip().lower(),
             (item.get("woreda") or "").strip().lower(),
-        ): (item.get("latitude"), item.get("longitude"))
-        for item in woreda_region_rows
-    }
+        )
+        if key in woreda_index:
+            continue
+        row = {
+            "territory_id": None,
+            "region": item.get("region"),
+            "zone": item.get("zone"),
+            "woreda": item.get("woreda"),
+            "village": item.get("woreda"),
+            "latitude": item.get("latitude"),
+            "longitude": item.get("longitude"),
+            "is_locked": False,
+            "availability_status": "open",
+            "assigned_application_id": None,
+            "has_agent": False,
+            "assigned_agent_name": None,
+            "territory_count": 0,
+            "assigned_territory_count": 0,
+        }
+        woreda_index[key] = row
+        woreda_rows.append(row)
+
+    for territory in territory_rows:
+        key = (
+            (territory.get("region") or "").strip().lower(),
+            (territory.get("zone") or "").strip().lower(),
+            (territory.get("woreda") or "").strip().lower(),
+        )
+        row = woreda_index.get(key)
+        if not row:
+            row = {
+                "territory_id": None,
+                "region": territory.get("region"),
+                "zone": territory.get("zone"),
+                "woreda": territory.get("woreda"),
+                "village": territory.get("woreda"),
+                "latitude": territory.get("latitude"),
+                "longitude": territory.get("longitude"),
+                "is_locked": False,
+                "availability_status": "open",
+                "assigned_application_id": None,
+                "has_agent": False,
+                "assigned_agent_name": None,
+                "territory_count": 0,
+                "assigned_territory_count": 0,
+            }
+            woreda_index[key] = row
+            woreda_rows.append(row)
+
+        row["territory_count"] += 1
+        is_assigned = bool(
+            territory.get("assigned_application_id")
+            or territory.get("is_locked")
+            or territory.get("availability_status") == "assigned"
+        )
+        if is_assigned:
+            row["assigned_territory_count"] += 1
+            row["is_locked"] = True
+            row["availability_status"] = "assigned"
+            if territory.get("assigned_application_id") and not row.get("assigned_application_id"):
+                row["assigned_application_id"] = territory.get("assigned_application_id")
+
+        if (row.get("latitude") is None or row.get("longitude") is None) and (
+            territory.get("latitude") is not None and territory.get("longitude") is not None
+        ):
+            row["latitude"] = territory.get("latitude")
+            row["longitude"] = territory.get("longitude")
+
+    rows = woreda_rows
     assigned_ids = [row.get("assigned_application_id") for row in rows if row.get("assigned_application_id")]
     assigned_lookup: dict[str, dict] = {}
     if assigned_ids:
@@ -523,16 +596,6 @@ def list_territories_for_map(
     )
 
     for row in rows:
-        key = (
-            (row.get("region") or "").strip().lower(),
-            (row.get("zone") or "").strip().lower(),
-            (row.get("woreda") or "").strip().lower(),
-        )
-        woreda_lat_lon = woreda_coordinates.get(key)
-        if woreda_lat_lon and woreda_lat_lon[0] is not None and woreda_lat_lon[1] is not None:
-            row["latitude"] = woreda_lat_lon[0]
-            row["longitude"] = woreda_lat_lon[1]
-
         assigned_id = row.get("assigned_application_id")
         assigned_app = assigned_lookup.get(assigned_id) if assigned_id else None
         fallback_app = None
@@ -543,16 +606,18 @@ def list_territories_for_map(
                 if app.get("region") == row.get("region")
                 and app.get("zone") == row.get("zone")
                 and app.get("woreda") == row.get("woreda")
-                and (
-                    (app.get("preferred_territory") and app.get("preferred_territory") == row.get("village"))
-                    or not app.get("preferred_territory")
-                )
             ]
             if fallback_matches:
                 fallback_app = fallback_matches[0]
         display_app = assigned_app or fallback_app
         row["has_agent"] = bool(display_app)
         row["assigned_agent_name"] = display_app.get("full_name") if display_app else None
+        if display_app:
+            row["is_locked"] = True
+            row["availability_status"] = "assigned"
+
+    if occupied_only:
+        rows = [row for row in rows if row.get("is_locked") or row.get("has_agent")]
     return rows
 
 
