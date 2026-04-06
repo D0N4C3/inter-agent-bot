@@ -99,7 +99,8 @@
     "upload_id_front": "ID Front",
     "upload_id_back": "ID Back",
     "upload_profile": "Profile",
-    "btn_change_language": "Change Language"
+    "btn_change_language": "Change Language",
+    "btn_open_mini_app": "Open Mini App"
   },
   "am": {
     "welcome": "ወደ Inter Ethiopia Solutions የወኪል ምዝገባ ቦት በደህና መጡ\n\nእባክዎን ከዚህ በታች የመተግበሪያዎን አይነት ይምረጡ።",
@@ -201,7 +202,8 @@
     "upload_id_front": "የመታወቂያ ፊት",
     "upload_id_back": "የመታወቂያ ጀርባ",
     "upload_profile": "መገለጫ",
-    "btn_change_language": "ቋንቋ ቀይር"
+    "btn_change_language": "ቋንቋ ቀይር",
+    "btn_open_mini_app": "ሚኒ መተግበሪያ ክፈት"
   },
   "om": {
     "welcome": "Baga nagaan gara Inter Ethiopia Solutions Agent Registration Bot dhuftan\n\nMaaloo gosa iyyannaa keessanii armaan gadiitti filadhaa.",
@@ -303,7 +305,8 @@
     "upload_id_front": "ID Fuuldura",
     "upload_id_back": "ID Duuba",
     "upload_profile": "Piroofaayilii",
-    "btn_change_language": "Afaan Jijjiiri"
+    "btn_change_language": "Afaan Jijjiiri",
+    "btn_open_mini_app": "Mini App Bani"
   },
   "ti": {
     "welcome": "እንቋዕ ናብ Inter Ethiopia Solutions ወኪል መመዝገቢ ቦት ብደሓን መጻእኩም\n\nበጃኹም ካብዞም ዝስዕቡ ዓይነት መመልከቻኹም ይምረጡ።",
@@ -405,6 +408,7 @@
     "upload_id_front": "መለለዪ (ID) ቅድሚት",
     "upload_id_back": "መለለዪ (ID) ድሕሪት",
     "upload_profile": "ፕሮፋይል",
-    "btn_change_language": "ቋንቋ ቀይር"
+    "btn_change_language": "ቋንቋ ቀይር",
+    "btn_open_mini_app": "ሚኒ መተግበሪያ ክፈት"
   }
 }
