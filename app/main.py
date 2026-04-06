@@ -219,11 +219,8 @@ def fallback_match_reason(user_id: int, text: str | None) -> str:
         "/send",
         "/status",
         tr(user_id, "btn_check_status"),
-        "/territory",
-        tr(user_id, "btn_check_territory"),
         "/admin",
         "/adminmenu",
-        tr(user_id, "btn_admin_management"),
         tr(user_id, "btn_back_main_menu"),
         tr(user_id, "btn_admin_dashboard_link"),
         tr(user_id, "btn_view_recent_applications"),
@@ -299,13 +296,10 @@ def start_keyboard_for_user(user_id: int) -> list[list[str]]:
         [tr(user_id, "btn_register_sales")],
         [tr(user_id, "btn_register_installer")],
         [tr(user_id, "btn_register_both")],
-        [tr(user_id, "btn_check_territory")],
         [tr(user_id, "btn_check_status")],
         [tr(user_id, "btn_contact_support")],
         [tr(user_id, "btn_change_language")],
     ]
-    if is_bot_admin(str(user_id)):
-        keyboard.insert(0, [tr(user_id, "btn_admin_management")])
     return keyboard
 
 
@@ -948,27 +942,12 @@ async def _telegram_webhook(update) -> dict:
                 await send_message(chat_id, tr(user_id, "status_not_found"))
             return _log_route("status_lookup")
 
-        if text in {"/territory", tr(user_id, "btn_check_territory")}:
-            log_non_registration_route(user_id, text, "territory", in_reg)
-            await send_message(chat_id, tr(user_id, "territory_help"))
-            return _log_route("territory_help")
+        if text and text.startswith("/territory"):
+            log_non_registration_route(user_id, text, "territory_removed", in_reg)
+            await send_message(chat_id, "Territory availability check has moved to the Mini App Territories map.")
+            return _log_route("territory_removed")
 
-        if text and text.startswith("/territory "):
-            log_non_registration_route(user_id, text, "territory_lookup", in_reg)
-            territory = text.replace("/territory", "", 1).strip()
-            parts = [p.strip() for p in territory.split("|")]
-            if len(parts) == 5:
-                region, zone, woreda, kebele, village = parts
-                available = territory_is_available(village, region=region, zone=zone, woreda=woreda, kebele=kebele)
-            else:
-                available = territory_is_available(territory)
-            if available:
-                await send_message(chat_id, tr(user_id, "territory_available"))
-            else:
-                await send_message(chat_id, tr(user_id, "territory_unavailable"))
-            return _log_route("territory_check")
-
-        if text in {"/admin", tr(user_id, "btn_admin_management"), "/adminmenu"}:
+        if text in {"/admin", "/adminmenu"}:
             log_non_registration_route(user_id, text, "admin", in_reg)
             await show_admin_menu(chat_id, user_id)
             return _log_route("admin_menu")
