@@ -14,6 +14,7 @@ from html import escape
 import httpx
 import csv
 from io import StringIO
+from telegram import Bot, ReplyKeyboardMarkup, Update
 
 from flask import Flask, Response, abort, redirect, request
 
@@ -54,6 +55,7 @@ app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
 app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
+telegram_bot = Bot(token=settings.telegram_bot_token)
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
@@ -206,33 +208,15 @@ async def send_application_preview(chat_id: int, app_row: dict, user_id: int) ->
             await send_message(chat_id, f"{label}: {url}")
 
 
-async def telegram_api(method: str, payload: dict) -> dict:
-    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/{method}"
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(url, json=payload)
-    response.raise_for_status()
-    data = response.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
-    return data
-
-
 async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None = None) -> None:
-    payload: dict = {"chat_id": chat_id, "text": text}
+    reply_markup = None
     if keyboard:
-        payload["reply_markup"] = {
-            "keyboard": [[{"text": button} for button in row] for row in keyboard],
-            "resize_keyboard": True,
-            "one_time_keyboard": False,
-        }
-    await telegram_api("sendMessage", payload)
+        reply_markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True, one_time_keyboard=False)
+    await telegram_bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
 async def send_photo(chat_id: int, photo_url: str, caption: str | None = None) -> None:
-    payload: dict = {"chat_id": chat_id, "photo": photo_url}
-    if caption:
-        payload["caption"] = caption
-    await telegram_api("sendPhoto", payload)
+    await telegram_bot.send_photo(chat_id=chat_id, photo=photo_url, caption=caption)
 
 
 def send_post_approval_onboarding(application: dict) -> None:
@@ -407,18 +391,13 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if doc and doc.get("file_name") and "." in doc["file_name"]:
             file_ext = doc["file_name"].split(".")[-1]
 
-        file_info = await telegram_api("getFile", {"file_id": file_id})
-        file_path = file_info["result"]["file_path"]
-        file_size = int(file_info["result"].get("file_size") or 0)
+        tg_file = await telegram_bot.get_file(file_id)
+        file_size = int(getattr(tg_file, "file_size", 0) or 0)
         max_size = settings.max_upload_size_mb * 1024 * 1024
         if file_size > max_size:
             await send_message(chat_id, trf(user_id, "file_too_large", size=settings.max_upload_size_mb))
             return
-        file_url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            file_resp = await client.get(file_url)
-            file_resp.raise_for_status()
+        file_bytes = bytes(await tg_file.download_as_bytearray())
 
         guessed_type = mimetypes.guess_type(f"file.{file_ext}")[0]
         content_type = guessed_type or "application/octet-stream"
@@ -435,7 +414,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             filename = f"profile-photo-{secrets.token_hex(6)}.{file_ext}"
 
         uploaded_url = upload_telegram_file(
-            file_resp.content,
+            file_bytes,
             folder=f"applications/{user_id}",
             filename=filename,
             content_type=content_type,
@@ -594,9 +573,11 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
     lang = sessions.get(user_id, {}).get("language", "en")
 
     sessions[user_id] = {
+        "registration_active": True,
         "step_index": 0,
         "answers": {"applicant_type": applicant_type},
         "language": lang,
+        "awaiting_language": False,
     }
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
@@ -607,20 +588,25 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-async def _telegram_webhook(update: dict) -> dict:
+async def _telegram_webhook(update: Update) -> dict:
     try:
-        message = update.get("message") or update.get("edited_message")
+        message_obj = update.effective_message
+        if not message_obj:
+            return {"ok": True}
+
+        message = message_obj.to_dict()
         if not message:
             return {"ok": True}
 
         chat_id = message["chat"]["id"]
         user_id = message["from"]["id"]
-        text = message.get("text")
+        text = message_obj.text
 
         if text == "/start":
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = sessions[user_id].get("language", "en")
             sessions[user_id]["awaiting_language"] = True
+            sessions[user_id]["registration_active"] = False
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return {"ok": True}
 
@@ -799,7 +785,7 @@ async def _telegram_webhook(update: dict) -> dict:
             if handled:
                 return {"ok": True}
 
-        if user_id in sessions:
+        if sessions.get(user_id, {}).get("registration_active"):
             await process_registration_input(chat_id, user_id, text, message)
             return {"ok": True}
 
@@ -812,7 +798,10 @@ async def _telegram_webhook(update: dict) -> dict:
 
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook() -> dict:
-    update = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True) or {}
+    update = Update.de_json(payload, telegram_bot)
+    if not update:
+        return {"ok": True}
     return asyncio.run(_telegram_webhook(update))
 
 from app.web_module import WebModule
