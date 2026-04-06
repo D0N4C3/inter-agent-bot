@@ -7,8 +7,7 @@ import secrets
 import asyncio
 import hashlib
 import hmac
-import os
-from multiprocessing import current_process
+from collections import Counter
 from urllib.parse import parse_qsl
 from datetime import datetime, timezone
 from html import escape
@@ -171,6 +170,26 @@ sessions: dict[int, dict] = {}
 admin_sessions: dict[int, dict] = {}
 
 VALID_PERFORMANCE_LEVELS = {"High", "Medium", "Low"}
+COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER: Counter[str] = Counter()
+
+
+def log_non_registration_route(user_id: int, text: str | None, route: str, in_reg: bool) -> None:
+    logger.info("telegram.route route=%s in_reg=%s text=%r user_id=%s", route, in_reg, text, user_id)
+    if not in_reg:
+        return
+
+    COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER[route] += 1
+    logger.info(
+        "metric.command_while_registration_active += 1 route=%s count=%s",
+        route,
+        COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER[route],
+    )
+    top_route, top_count = COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER.most_common(1)[0]
+    logger.info(
+        "metric.command_while_registration_active.top_route route=%s count=%s",
+        top_route,
+        top_count,
+    )
 
 
 def localized_values(key: str) -> set[str]:
@@ -670,17 +689,10 @@ async def _telegram_webhook(update: Update) -> dict:
         chat_id = message["chat"]["id"]
         user_id = message["from"]["id"]
         text = message_obj.text
-        existing_session = sessions.get(user_id)
-        logger.info(
-            "telegram-webhook-entry worker=%s pid=%s user_id=%s has_session=%s text=%s",
-            WORKER_IDENTIFIER,
-            PROCESS_PID,
-            user_id,
-            bool(existing_session),
-            text,
-        )
+        in_reg = registration_in_progress(user_id)
 
         if text == "/start":
+            log_non_registration_route(user_id, text, "/start", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = sessions[user_id].get("language", "en")
             sessions[user_id]["awaiting_language"] = True
@@ -696,6 +708,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return {"ok": True}
 
         if text in {"/language", tr(user_id, "btn_change_language")}:
+            log_non_registration_route(user_id, text, "/language", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["awaiting_language"] = True
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
@@ -706,6 +719,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return {"ok": True}
 
         if text in {"/help", "/contact", tr(user_id, "btn_contact_support")}:
+            log_non_registration_route(user_id, text, "support", in_reg)
             await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard(user_id))
             return {"ok": True}
 
@@ -754,6 +768,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return {"ok": True}
 
         if text and (text.startswith("/status") or text == tr(user_id, "btn_check_status")):
+            log_non_registration_route(user_id, text, "status", in_reg)
             parts = text.split(maxsplit=1)
             status = None
             if len(parts) == 2:
@@ -768,10 +783,12 @@ async def _telegram_webhook(update: Update) -> dict:
             return {"ok": True}
 
         if text in {"/territory", tr(user_id, "btn_check_territory")}:
+            log_non_registration_route(user_id, text, "territory", in_reg)
             await send_message(chat_id, tr(user_id, "territory_help"))
             return {"ok": True}
 
         if text and text.startswith("/territory "):
+            log_non_registration_route(user_id, text, "territory_lookup", in_reg)
             territory = text.replace("/territory", "", 1).strip()
             parts = [p.strip() for p in territory.split("|")]
             if len(parts) == 5:
@@ -786,6 +803,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return {"ok": True}
 
         if text in {"/admin", tr(user_id, "btn_admin_management"), "/adminmenu"}:
+            log_non_registration_route(user_id, text, "admin", in_reg)
             await show_admin_menu(chat_id, user_id)
             return {"ok": True}
 
