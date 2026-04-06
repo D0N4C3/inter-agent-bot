@@ -1,5 +1,4 @@
 import smtplib
-import uuid
 from math import asin, cos, radians, sin, sqrt
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -160,67 +159,6 @@ def default_agent_tag(applicant_type: str) -> str:
         "sales_installer": "Hybrid",
     }
     return mapping.get(applicant_type, "Hybrid")
-
-
-def save_application_draft(
-    telegram_user_id: str,
-    applicant_type: str,
-    language: str,
-    step_index: int,
-    answers: dict,
-) -> None:
-    client = get_supabase()
-    payload = {
-        "telegram_user_id": telegram_user_id,
-        "applicant_type": applicant_type,
-        "language": language,
-        "step_index": step_index,
-        "answers": answers,
-        "reminder_sent_at": None,
-    }
-    existing = (
-        client.table("application_drafts")
-        .select("draft_id")
-        .eq("telegram_user_id", telegram_user_id)
-        .limit(1)
-        .execute()
-    )
-    if existing.data:
-        draft_id = existing.data[0]["draft_id"]
-        client.table("application_drafts").update(payload).eq("draft_id", draft_id).execute()
-    else:
-        payload["draft_id"] = str(uuid.uuid4())
-        client.table("application_drafts").insert(payload).execute()
-
-
-def get_application_draft(telegram_user_id: str) -> dict | None:
-    client = get_supabase()
-    result = (
-        client.table("application_drafts")
-        .select("*")
-        .eq("telegram_user_id", telegram_user_id)
-        .limit(1)
-        .execute()
-    )
-    if result.data:
-        return result.data[0]
-    return None
-
-
-def delete_application_draft(telegram_user_id: str) -> None:
-    client = get_supabase()
-    client.table("application_drafts").delete().eq("telegram_user_id", telegram_user_id).execute()
-
-
-def get_stale_drafts(hours: int = 24) -> list[dict]:
-    client = get_supabase()
-    result = client.rpc("get_stale_application_drafts", {"cutoff_hours": hours}).execute()
-    return result.data or []
-
-
-def mark_draft_reminder_sent(telegram_user_id: str) -> None:
-    client = get_supabase()
-    client.table("application_drafts").update({"reminder_sent_at": datetime.now(timezone.utc).isoformat()}).eq("telegram_user_id", telegram_user_id).execute()
 
 
 def get_application(application_id: str) -> dict | None:
@@ -490,12 +428,6 @@ def list_bot_admins(limit: int = 250) -> list[dict]:
 def remove_bot_admin(telegram_user_id: str) -> None:
     client = get_supabase()
     client.table("bot_admins").delete().eq("telegram_user_id", telegram_user_id).execute()
-
-
-def list_application_drafts(limit: int = 250) -> list[dict]:
-    client = get_supabase()
-    result = client.table("application_drafts").select("*").order("updated_at", desc=True).limit(max(1, min(limit, 1000))).execute()
-    return result.data or []
 
 
 def list_performance_events(application_id: str | None = None, limit: int = 300) -> list[dict]:

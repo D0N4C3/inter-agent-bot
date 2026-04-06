@@ -12,13 +12,11 @@ from app.services import (
     VALID_STATUSES,
     VALID_TERRITORY_AVAILABILITY,
     add_bot_admin,
-    delete_application_draft,
     delete_performance_event,
     delete_territory,
     delete_training_progress,
     get_application,
     get_applications,
-    list_application_drafts,
     list_bot_admins,
     list_location_options,
     list_performance_events,
@@ -74,7 +72,6 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
         apps = get_applications(region=region, applicant_type=applicant_type, status=status)
         territories = list_territories_admin(region=region or None, zone=request.args.get("zone"), woreda=request.args.get("woreda"))
         admins = list_bot_admins()
-        drafts = list_application_drafts()
         performance_events = list_performance_events(application_id=request.args.get("application_id"))
         training_progress = list_training_progress(application_id=request.args.get("application_id"))
         app_settings = list_app_settings()
@@ -113,7 +110,6 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
                 valid_territory_availability=sorted(VALID_TERRITORY_AVAILABILITY),
                 territories=territories,
                 admins=admins,
-                drafts=drafts,
                 performance_events=performance_events,
                 training_progress=training_progress,
                 app_settings=app_settings,
@@ -240,13 +236,6 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
     def admin_delete_bot_admin(telegram_user_id: str):
         require_admin()
         remove_bot_admin(telegram_user_id)
-        token = request.args.get("token")
-        return redirect(f"/admin?token={token}" if token else "/admin", code=303)
-
-    @blueprint.post("/admin/drafts/<telegram_user_id>/delete")
-    def admin_delete_draft(telegram_user_id: str):
-        require_admin()
-        delete_application_draft(telegram_user_id)
         token = request.args.get("token")
         return redirect(f"/admin?token={token}" if token else "/admin", code=303)
 

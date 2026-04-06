@@ -229,17 +229,6 @@
     </div>
   </section>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">Application Drafts (CRUD)</span><span class="card-meta">{{ drafts|length }}</span></div>
-    <div class="module-body">
-      {% for draft in drafts %}
-      <form method="post" action="/admin/drafts/{{ draft.telegram_user_id }}/delete" class="inline-form">
-        <span>{{ draft.telegram_user_id }} · {{ draft.applicant_type }} · step {{ draft.step_index }} · {{ draft.updated_at }}</span>
-        <button class="btn btn-cancel-edit" type="submit">Delete draft</button>
-      </form>
-      {% endfor %}
-    </div>
-  </div>
 </main>
 
 <script>
