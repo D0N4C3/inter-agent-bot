@@ -98,6 +98,53 @@ def language_selection_pending(user_id: int) -> bool:
     return sessions.get(user_id, {}).get("awaiting_language", False)
 
 
+def fallback_match_reason(user_id: int, text: str | None) -> str:
+    if not text:
+        return "unknown_input"
+
+    if text in LANGUAGE_LABELS:
+        return "known_language_label"
+
+    registration_buttons = {
+        tr(user_id, "btn_register_sales"),
+        tr(user_id, "btn_register_installer"),
+        tr(user_id, "btn_register_both"),
+    }
+    if text in registration_buttons:
+        return "known_registration_button"
+
+    known_commands_and_buttons = {
+        "/start",
+        "/language",
+        tr(user_id, "btn_change_language"),
+        "/help",
+        "/contact",
+        tr(user_id, "btn_contact_support"),
+        tr(user_id, "btn_email_support"),
+        tr(user_id, "btn_whatsapp_support"),
+        tr(user_id, "btn_call_support"),
+        "/send",
+        "/status",
+        tr(user_id, "btn_check_status"),
+        "/territory",
+        tr(user_id, "btn_check_territory"),
+        "/admin",
+        "/adminmenu",
+        tr(user_id, "btn_admin_management"),
+        tr(user_id, "btn_back_main_menu"),
+        tr(user_id, "btn_admin_dashboard_link"),
+        tr(user_id, "btn_view_recent_applications"),
+        tr(user_id, "btn_filter_applications"),
+        tr(user_id, "btn_update_application_status"),
+        tr(user_id, "btn_add_admin_user"),
+        "/register",
+    }
+    if text in known_commands_and_buttons or text.startswith(("/addadmin", "/status ", "/territory ")):
+        return "known_command"
+
+    return "unknown_input"
+
+
 def registration_in_progress(user_id: int) -> bool:
     session = sessions.get(user_id, {})
     if session.get("registration_active"):
@@ -813,6 +860,18 @@ async def _telegram_webhook(update: Update) -> dict:
             await process_registration_input(chat_id, user_id, text, message)
             return {"ok": True}
 
+        session = sessions.get(user_id, {})
+        awaiting_language = session.get("awaiting_language", False)
+        match_reason = fallback_match_reason(user_id, text)
+        matched_known_command_or_button = match_reason in {"known_command", "known_registration_button"}
+        logger.info(
+            "route=start_prompt_fallback registration_in_progress=%s awaiting_language=%s step_index=%s matched_known_command_or_button=%s match_reason=%s",
+            registration_in_progress(user_id),
+            awaiting_language,
+            session.get("step_index"),
+            matched_known_command_or_button,
+            match_reason,
+        )
         await send_message(chat_id, tr(user_id, "start_prompt"))
     except Exception:
         logger.exception("Failed to handle telegram webhook update.")
