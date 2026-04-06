@@ -43,12 +43,13 @@ Required env values (in addition to Phase 1):
 - `BOT_SESSION_BACKEND` (optional): `memory`, `sqlite`, or `supabase` (default: `memory`).
 - `BOT_SESSION_TTL_MINUTES` (optional): session expiry window for `memory`/`sqlite` backends (default: `90`).
 - `BOT_SESSION_SQLITE_PATH` (optional): local sqlite path for `sqlite` backend (default: `data/bot_sessions.sqlite3`).
+- `BOT_SESSION_SUPABASE_CACHE_TTL_SECONDS` (optional): in-process hot-cache TTL for `supabase` session backend (default: `120`).
 
 ### Performance note for slow Telegram replies
 
 If replies are delayed, check your session backend first:
 
-- `supabase` session backend introduces a network read/write on most bot interactions.
+- `supabase` session backend now uses an in-process hot cache and async write coalescing to keep replies snappy while preserving remote persistence.
 - `sqlite` keeps sessions local and is usually much faster for webhook latency.
 - `memory` is fastest but not shared across workers/restarts.
 

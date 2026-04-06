@@ -292,8 +292,10 @@ def localized_values(key: str) -> set[str]:
 
 
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
+    language = get_session(user_id).get("language", "en")
+    mini_app_url = f"https://agent.interethiopia.com/mini-app?lang={language}"
     keyboard = [
-        [{"text": tr(user_id, "btn_open_mini_app"), "web_app": "https://agent.interethiopia.com/mini-app"}],
+        [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
         [tr(user_id, "btn_register_installer")],
         [tr(user_id, "btn_register_both")],
