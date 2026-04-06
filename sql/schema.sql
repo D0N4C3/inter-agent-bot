@@ -104,6 +104,12 @@ create table if not exists inter_agent_apply.bot_admins (
   created_at timestamptz not null default now()
 );
 
+create table if not exists inter_agent_apply.bot_sessions (
+  telegram_user_id text primary key,
+  session_data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists inter_agent_apply.app_settings (
   setting_id uuid primary key default gen_random_uuid(),
   setting_key text not null unique,

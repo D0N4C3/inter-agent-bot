@@ -275,6 +275,36 @@ def add_bot_admin(telegram_user_id: str, created_by: str | None = None) -> tuple
     return True, inserted.data[0]
 
 
+def get_bot_session(telegram_user_id: str) -> dict | None:
+    client = get_supabase()
+    result = (
+        client.table("bot_sessions")
+        .select("session_data")
+        .eq("telegram_user_id", telegram_user_id)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0].get("session_data") or {}
+    return None
+
+
+def upsert_bot_session(telegram_user_id: str, session_data: dict) -> dict:
+    client = get_supabase()
+    payload = {
+        "telegram_user_id": telegram_user_id,
+        "session_data": session_data,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = client.table("bot_sessions").upsert(payload, on_conflict="telegram_user_id").execute()
+    return (result.data or [payload])[0]
+
+
+def delete_bot_session(telegram_user_id: str) -> None:
+    client = get_supabase()
+    client.table("bot_sessions").delete().eq("telegram_user_id", telegram_user_id).execute()
+
+
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
     client = get_supabase()
     query = client.table("territories").select("region,zone,woreda,village").eq("is_locked", False)
