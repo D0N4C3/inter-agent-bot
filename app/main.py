@@ -55,7 +55,10 @@ app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
 app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
-telegram_bot = Bot(token=settings.telegram_bot_token)
+
+
+def create_telegram_bot() -> Bot:
+    return Bot(token=settings.telegram_bot_token)
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
@@ -212,11 +215,11 @@ async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None
     reply_markup = None
     if keyboard:
         reply_markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True, one_time_keyboard=False)
-    await telegram_bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+    await create_telegram_bot().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
 async def send_photo(chat_id: int, photo_url: str, caption: str | None = None) -> None:
-    await telegram_bot.send_photo(chat_id=chat_id, photo=photo_url, caption=caption)
+    await create_telegram_bot().send_photo(chat_id=chat_id, photo=photo_url, caption=caption)
 
 
 def send_post_approval_onboarding(application: dict) -> None:
@@ -391,7 +394,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if doc and doc.get("file_name") and "." in doc["file_name"]:
             file_ext = doc["file_name"].split(".")[-1]
 
-        tg_file = await telegram_bot.get_file(file_id)
+        tg_file = await create_telegram_bot().get_file(file_id)
         file_size = int(getattr(tg_file, "file_size", 0) or 0)
         max_size = settings.max_upload_size_mb * 1024 * 1024
         if file_size > max_size:
@@ -799,7 +802,7 @@ async def _telegram_webhook(update: Update) -> dict:
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook() -> dict:
     payload = request.get_json(silent=True) or {}
-    update = Update.de_json(payload, telegram_bot)
+    update = Update.de_json(payload, create_telegram_bot())
     if not update:
         return {"ok": True}
     return asyncio.run(_telegram_webhook(update))
