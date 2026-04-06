@@ -97,6 +97,16 @@ def trf(user_id: int, key: str, **kwargs) -> str:
 def language_selection_pending(user_id: int) -> bool:
     return sessions.get(user_id, {}).get("awaiting_language", False)
 
+
+def registration_in_progress(user_id: int) -> bool:
+    session = sessions.get(user_id, {})
+    if session.get("registration_active"):
+        return True
+
+    step_index = session.get("step_index")
+    answers = session.get("answers")
+    return isinstance(step_index, int) and 0 <= step_index < len(QUESTION_FLOW) and isinstance(answers, dict)
+
 QUESTION_FLOW = [
     ("full_name", "prompt_full_name"),
     ("phone", "prompt_phone"),
@@ -798,7 +808,8 @@ async def _telegram_webhook(update: Update) -> dict:
             if handled:
                 return {"ok": True}
 
-        if sessions.get(user_id, {}).get("registration_active"):
+        if registration_in_progress(user_id):
+            sessions.setdefault(user_id, {})["registration_active"] = True
             await process_registration_input(chat_id, user_id, text, message)
             return {"ok": True}
 
