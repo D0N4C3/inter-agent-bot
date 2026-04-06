@@ -45,6 +45,8 @@ VALID_UI_LANGUAGES = {"en", "am", "om", "ti"}
 _BOT_SESSION_MEMORY_STORE: dict[str, dict] = {}
 _BOT_SESSION_LOCK = threading.Lock()
 _BOT_SESSION_DB_READY = False
+_BOT_SESSION_SQLITE_LAST_CLEANUP: datetime | None = None
+_BOT_SESSION_SQLITE_CLEANUP_INTERVAL = timedelta(minutes=5)
 _SUPABASE_CLIENT: Client | None = None
 _SUPABASE_CLIENT_LOCK = threading.Lock()
 
@@ -115,6 +117,18 @@ def _ensure_sqlite_session_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_bot_sessions_local_expires ON bot_sessions_local(expires_at)")
         conn.commit()
     _BOT_SESSION_DB_READY = True
+
+
+def _maybe_cleanup_sqlite_expired_sessions(conn: sqlite3.Connection) -> None:
+    global _BOT_SESSION_SQLITE_LAST_CLEANUP
+    now = _utc_now()
+    if (
+        _BOT_SESSION_SQLITE_LAST_CLEANUP is not None
+        and now - _BOT_SESSION_SQLITE_LAST_CLEANUP < _BOT_SESSION_SQLITE_CLEANUP_INTERVAL
+    ):
+        return
+    conn.execute("DELETE FROM bot_sessions_local WHERE expires_at <= ?", (now.isoformat(),))
+    _BOT_SESSION_SQLITE_LAST_CLEANUP = now
 
 
 def list_app_settings() -> list[dict]:
@@ -418,7 +432,7 @@ def upsert_bot_session(telegram_user_id: str, session_data: dict) -> dict:
                     payload["updated_at"],
                 ),
             )
-            conn.execute("DELETE FROM bot_sessions_local WHERE expires_at <= ?", (_utc_now().isoformat(),))
+            _maybe_cleanup_sqlite_expired_sessions(conn)
             conn.commit()
         return payload
 
