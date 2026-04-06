@@ -709,7 +709,12 @@
       marker.addListener('click', () => {
         const territoryName = [territory.region, territory.woreda, territory.village].filter(Boolean).join(' / ')
           || (territory.village || 'Territory');
-        infoWindow.setContent(`<strong>${territoryName}</strong><br>Status: ${status.label}`);
+        infoWindow.setContent(`
+          <div class="territory-info-window">
+            <div class="territory-info-window__title">${territoryName}</div>
+            <div class="territory-info-window__meta">Status: ${status.label}</div>
+          </div>
+        `);
         infoWindow.open({ anchor: marker, map: mapInstance });
       });
       territoryMarkers.push(marker);
