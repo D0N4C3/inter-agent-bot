@@ -345,6 +345,7 @@ select option { background: #111e32; color: #fff; }
   border: 1px solid rgba(148, 163, 184, 0.24);
   min-width: 250px;
   max-width: 300px;
+  box-sizing: border-box;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 12px 30px rgba(2, 6, 23, 0.5);
@@ -427,10 +428,13 @@ select option { background: #111e32; color: #fff; }
   box-shadow: 0 12px 30px rgba(2, 6, 23, 0.55);
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 12px;
+  padding: 0 !important;
+  overflow: visible !important;
 }
 
 #map .gm-style .gm-style-iw-d {
-  overflow: hidden !important;
+  overflow: visible !important;
+  max-height: none !important;
 }
 
 #map .gm-style .gm-style-iw-tc::after {
