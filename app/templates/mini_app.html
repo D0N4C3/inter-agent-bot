@@ -626,7 +626,6 @@
       styles: darkMapStyles,
     });
     infoWindow = new google.maps.InfoWindow({
-      headerDisabled: true,
       maxWidth: 240,
     });
     map.addListener('click', (e) => {
@@ -658,6 +657,9 @@
 
   async function fetchTerritories(forceRefresh = false) {
     const qp = buildTerritoryFilterQuery();
+    if (!qp.has('occupied_only')) {
+      qp.set('occupied_only', '0');
+    }
     const cacheKey = qp.toString();
     if (!forceRefresh && territoryFetchCache.has(cacheKey)) {
       return territoryFetchCache.get(cacheKey);
