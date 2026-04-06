@@ -93,11 +93,23 @@ def upsert_app_setting(setting_key: str, setting_value: str, updated_by: str | N
     return result.data[0]
 
 
-def get_training_links() -> dict[str, str]:
+def get_training_links(language: str | None = None) -> dict[str, str]:
+    normalized_lang = (language or "en").strip().lower()
+    if normalized_lang not in {"en", "am", "om", "ti"}:
+        normalized_lang = "en"
+
+    def resolve_link(base_setting_key: str, fallback: str) -> str:
+        localized_key = f"{base_setting_key}_{normalized_lang}"
+        return (
+            get_app_setting(localized_key)
+            or get_app_setting(base_setting_key, fallback)
+            or fallback
+        )
+
     return {
-        "pdf": get_app_setting("training_pdf_url", settings.training_pdf_url) or settings.training_pdf_url,
-        "video": get_app_setting("training_video_url", settings.training_video_url) or settings.training_video_url,
-        "sales_playbook": get_app_setting("sales_playbook_url", settings.sales_playbook_url) or settings.sales_playbook_url,
+        "pdf": resolve_link("training_pdf_url", settings.training_pdf_url),
+        "video": resolve_link("training_video_url", settings.training_video_url),
+        "sales_playbook": resolve_link("sales_playbook_url", settings.sales_playbook_url),
     }
 
 

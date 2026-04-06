@@ -28,8 +28,9 @@ def register_agent_routes(blueprint: Blueprint) -> None:
         if not dashboard:
             return {"ok": False, "error": "Agent not found"}, 404
 
-        training_links = get_training_links()
         profile = dashboard.get("profile") or {}
+        requested_lang = str(request.args.get("lang") or profile.get("language") or "en")
+        training_links = get_training_links(requested_lang)
         modules = get_training_modules_for_agent(profile.get("status"), profile.get("applicant_type"))
         for module in modules:
             module["attachments"] = {
