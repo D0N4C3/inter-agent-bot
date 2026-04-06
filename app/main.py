@@ -291,13 +291,13 @@ def localized_values(key: str) -> set[str]:
     return {I18N.get(lang, {}).get(key, key) for lang in SUPPORTED_LANGUAGES}
 
 
-def start_keyboard_for_user(user_id: int) -> list[list[str]]:
+def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
     keyboard = [
+        [{"text": tr(user_id, "btn_open_mini_app"), "web_app": "https://agent.interethiopia.com/mini-app"}],
         [tr(user_id, "btn_register_sales")],
         [tr(user_id, "btn_register_installer")],
         [tr(user_id, "btn_register_both")],
         [tr(user_id, "btn_check_status")],
-        [tr(user_id, "btn_contact_support")],
         [tr(user_id, "btn_change_language")],
     ]
     return keyboard
@@ -374,13 +374,20 @@ async def send_application_preview(chat_id: int, app_row: dict, user_id: int) ->
             await send_message(chat_id, f"{label}: {url}")
 
 
-async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None = None) -> None:
-    from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+async def send_message(chat_id: int, text: str, keyboard: list[list[str | dict[str, str]]] | None = None) -> None:
+    from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
     reply_markup = None
     if keyboard:
+        def make_button(item: str | dict[str, str]) -> KeyboardButton:
+            if isinstance(item, str):
+                return KeyboardButton(text=item)
+            if "web_app" in item:
+                return KeyboardButton(text=item["text"], web_app=WebAppInfo(url=item["web_app"]))
+            return KeyboardButton(text=item["text"])
+
         reply_markup = ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text=label) for label in row] for row in keyboard],
+            keyboard=[[make_button(label) for label in row] for row in keyboard],
             resize_keyboard=True,
             one_time_keyboard=False,
         )
