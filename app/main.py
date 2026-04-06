@@ -7,7 +7,7 @@ import secrets
 import asyncio
 import hashlib
 import hmac
-from collections import Counter
+import json
 from urllib.parse import parse_qsl
 from datetime import datetime, timezone
 from html import escape
@@ -724,19 +724,58 @@ def health() -> dict:
 
 
 async def _telegram_webhook(update: Update) -> dict:
+    trace_id = secrets.token_hex(4)
+    user_id: int | None = None
+    chat_id: int | None = None
+
+    def _log_route(route: str) -> dict:
+        logger.info(
+            "telegram_webhook_route %s",
+            json.dumps({"trace_id": trace_id, "user_id": user_id, "chat_id": chat_id, "route": route}, ensure_ascii=False, separators=(",", ":")),
+        )
+        return {"ok": True}
+
+    def _payload_shape(value: object) -> object:
+        if isinstance(value, dict):
+            return {key: _payload_shape(nested) for key, nested in value.items()}
+        if isinstance(value, list):
+            if not value:
+                return []
+            return [_payload_shape(value[0])]
+        return type(value).__name__
+
     try:
         message_obj = update.effective_message
         if not message_obj:
-            return {"ok": True}
+            return _log_route("no_effective_message")
 
         message = message_obj.to_dict()
         if not message:
-            return {"ok": True}
+            return _log_route("empty_message")
 
-        chat_id = message["chat"]["id"]
-        user_id = message["from"]["id"]
+        chat_id = message.get("chat", {}).get("id")
+        user_id = message.get("from", {}).get("id")
         text = message_obj.text
-        in_reg = registration_in_progress(user_id)
+        message_type = next(
+            (key for key in ("photo", "document", "voice", "video", "sticker", "location", "contact", "animation") if message.get(key)),
+            "unknown",
+        )
+        text_value = text if text is not None else f"<{message_type}>"
+        session_keys = sorted(sessions.get(user_id, {}).keys()) if user_id is not None else []
+        logger.info(
+            "telegram_webhook_entry %s",
+            json.dumps(
+                {
+                    "trace_id": trace_id,
+                    "user_id": user_id,
+                    "chat_id": chat_id,
+                    "text": text_value,
+                    "session_keys": session_keys,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        )
 
         if text == "/start":
             log_non_registration_route(user_id, text, "/start", in_reg)
@@ -745,30 +784,30 @@ async def _telegram_webhook(update: Update) -> dict:
             sessions[user_id]["awaiting_language"] = True
             sessions[user_id]["registration_active"] = False
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
-            return {"ok": True}
+            return _log_route("start_command")
 
         if text in LANGUAGE_LABELS:
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = LANGUAGE_LABELS[text]
             sessions[user_id]["awaiting_language"] = False
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
-            return {"ok": True}
+            return _log_route("language_selected")
 
         if text in {"/language", tr(user_id, "btn_change_language")}:
             log_non_registration_route(user_id, text, "/language", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["awaiting_language"] = True
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
-            return {"ok": True}
+            return _log_route("language_command")
 
         if language_selection_pending(user_id):
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
-            return {"ok": True}
+            return _log_route("language_pending")
 
         if text in {"/help", "/contact", tr(user_id, "btn_contact_support")}:
             log_non_registration_route(user_id, text, "support", in_reg)
             await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard(user_id))
-            return {"ok": True}
+            return _log_route("support_menu")
 
         if text in {tr(user_id, "btn_email_support"), tr(user_id, "btn_whatsapp_support"), tr(user_id, "btn_call_support")}:
             channel_map = {
@@ -777,34 +816,34 @@ async def _telegram_webhook(update: Update) -> dict:
                 tr(user_id, "btn_call_support"): tr(user_id, "support_call"),
             }
             await send_message(chat_id, trf(user_id, "support_channel", channel=channel_map[text]))
-            return {"ok": True}
+            return _log_route("support_channel")
 
         if text == "/send":
             total_admins = count_admins()
             if total_admins == 0:
                 add_bot_admin(str(user_id), created_by=str(user_id))
                 await send_message(chat_id, tr(user_id, "first_admin_assigned"))
-                return {"ok": True}
+                return _log_route("send_first_admin")
 
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_send"))
-                return {"ok": True}
+                return _log_route("send_non_admin_denied")
 
             await send_message(
                 chat_id,
                 tr(user_id, "admin_command_active"),
             )
-            return {"ok": True}
+            return _log_route("send_admin_ready")
 
         if text and text.startswith("/addadmin"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_assign_admins"))
-                return {"ok": True}
+                return _log_route("addadmin_non_admin_denied")
 
             parts = text.split(maxsplit=1)
             if len(parts) != 2 or not parts[1].strip().isdigit():
                 await send_message(chat_id, tr(user_id, "usage_addadmin"))
-                return {"ok": True}
+                return _log_route("addadmin_usage")
 
             target_user_id = parts[1].strip()
             created, _ = add_bot_admin(target_user_id, created_by=str(user_id))
@@ -812,7 +851,7 @@ async def _telegram_webhook(update: Update) -> dict:
                 await send_message(chat_id, trf(user_id, "user_now_admin", user_id=target_user_id))
             else:
                 await send_message(chat_id, trf(user_id, "user_already_admin", user_id=target_user_id))
-            return {"ok": True}
+            return _log_route("addadmin_complete")
 
         if text and (text.startswith("/status") or text == tr(user_id, "btn_check_status")):
             log_non_registration_route(user_id, text, "status", in_reg)
@@ -827,12 +866,12 @@ async def _telegram_webhook(update: Update) -> dict:
                 await send_message(chat_id, trf(user_id, "status_found", status=status))
             else:
                 await send_message(chat_id, tr(user_id, "status_not_found"))
-            return {"ok": True}
+            return _log_route("status_lookup")
 
         if text in {"/territory", tr(user_id, "btn_check_territory")}:
             log_non_registration_route(user_id, text, "territory", in_reg)
             await send_message(chat_id, tr(user_id, "territory_help"))
-            return {"ok": True}
+            return _log_route("territory_help")
 
         if text and text.startswith("/territory "):
             log_non_registration_route(user_id, text, "territory_lookup", in_reg)
@@ -847,64 +886,64 @@ async def _telegram_webhook(update: Update) -> dict:
                 await send_message(chat_id, tr(user_id, "territory_available"))
             else:
                 await send_message(chat_id, tr(user_id, "territory_unavailable"))
-            return {"ok": True}
+            return _log_route("territory_check")
 
         if text in {"/admin", tr(user_id, "btn_admin_management"), "/adminmenu"}:
             log_non_registration_route(user_id, text, "admin", in_reg)
             await show_admin_menu(chat_id, user_id)
-            return {"ok": True}
+            return _log_route("admin_menu")
 
         if text == tr(user_id, "btn_back_main_menu"):
             await send_message(chat_id, tr(user_id, "back_main_menu"), keyboard=start_keyboard_for_user(user_id))
             admin_sessions.pop(user_id, None)
-            return {"ok": True}
+            return _log_route("back_main_menu")
 
         if text == tr(user_id, "btn_admin_dashboard_link"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_features"))
-                return {"ok": True}
+                return _log_route("admin_dashboard_denied")
             dashboard_url = "/admin"
             if settings.admin_dashboard_token:
                 dashboard_url = f"/admin?token={settings.admin_dashboard_token}"
             await send_message(chat_id, trf(user_id, "open_admin_dashboard", dashboard_url=dashboard_url))
-            return {"ok": True}
+            return _log_route("admin_dashboard_link")
 
         if text == tr(user_id, "btn_view_recent_applications"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_features"))
-                return {"ok": True}
+                return _log_route("view_recent_denied")
             apps = get_applications()[:5]
             if not apps:
                 await send_message(chat_id, tr(user_id, "no_applications_yet"))
-                return {"ok": True}
+                return _log_route("view_recent_empty")
             await send_message(chat_id, tr(user_id, "recent_applications_preview"))
             for item in apps:
                 await send_application_preview(chat_id, item, user_id)
-            return {"ok": True}
+            return _log_route("view_recent_done")
 
         if text == tr(user_id, "btn_filter_applications"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_features"))
-                return {"ok": True}
+                return _log_route("filter_applications_denied")
             admin_sessions[user_id] = {"state": "await_filter"}
             await send_message(chat_id, tr(user_id, "filter_instructions"))
-            return {"ok": True}
+            return _log_route("filter_applications_start")
 
         if text == tr(user_id, "btn_update_application_status"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_features"))
-                return {"ok": True}
+                return _log_route("update_status_denied")
             admin_sessions[user_id] = {"state": "await_application_for_update"}
             await send_message(chat_id, tr(user_id, "send_application_id_to_update"))
-            return {"ok": True}
+            return _log_route("update_status_start")
 
         if text == tr(user_id, "btn_add_admin_user"):
             if not is_bot_admin(str(user_id)):
                 await send_message(chat_id, tr(user_id, "admin_only_features"))
-                return {"ok": True}
+                return _log_route("add_admin_user_denied")
             admin_sessions[user_id] = {"state": "await_add_admin"}
             await send_message(chat_id, tr(user_id, "send_telegram_user_id_for_admin"))
-            return {"ok": True}
+            return _log_route("add_admin_user_start")
 
         if text == "/register":
             await send_message(
@@ -912,7 +951,7 @@ async def _telegram_webhook(update: Update) -> dict:
                 tr(user_id, "register_choose_type"),
                 keyboard=[[tr(user_id, "btn_register_sales")], [tr(user_id, "btn_register_installer")], [tr(user_id, "btn_register_both")]],
             )
-            return {"ok": True}
+            return _log_route("register_menu")
 
         applicant_type_by_button = {
             tr(user_id, "btn_register_sales"): "sales_only",
@@ -921,17 +960,17 @@ async def _telegram_webhook(update: Update) -> dict:
         }
         if text in applicant_type_by_button:
             await start_registration(chat_id, user_id, applicant_type_by_button[text])
-            return {"ok": True}
+            return _log_route("registration_type_selected")
 
         if user_id in admin_sessions:
             handled = await process_admin_input(chat_id, user_id, text)
             if handled:
-                return {"ok": True}
+                return _log_route("admin_input")
 
         if registration_in_progress(user_id):
             sessions.setdefault(user_id, {})["registration_active"] = True
             await process_registration_input(chat_id, user_id, text, message)
-            return {"ok": True}
+            return _log_route("registration_input")
 
         session = sessions.get(user_id, {})
         awaiting_language = session.get("awaiting_language", False)
@@ -946,10 +985,26 @@ async def _telegram_webhook(update: Update) -> dict:
             match_reason,
         )
         await send_message(chat_id, tr(user_id, "start_prompt"))
+        return _log_route("start_prompt_fallback")
     except Exception:
-        logger.exception("Failed to handle telegram webhook update.")
-        return {"ok": True}
-    return {"ok": True}
+        try:
+            update_payload = update.to_dict() if update else {}
+        except Exception:
+            update_payload = {"unserializable_update": True}
+        logger.exception(
+            "telegram_webhook_exception %s",
+            json.dumps(
+                {
+                    "trace_id": trace_id,
+                    "user_id": user_id,
+                    "chat_id": chat_id,
+                    "update_shape": _payload_shape(update_payload),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        )
+        return _log_route("exception")
 
 
 @app.route("/telegram/webhook", methods=["POST"])
