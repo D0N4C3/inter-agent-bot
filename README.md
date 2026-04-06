@@ -40,6 +40,9 @@ Required env values (in addition to Phase 1):
 - `TRAINING_VIDEO_URL` (optional): onboarding video link.
 - `SALES_PLAYBOOK_URL` (optional): sales playbook link.
 - `GOOGLE_MAPS_SDK_KEY` (optional): enables Google Maps in the mini app territory workspace.
+- `BOT_SESSION_BACKEND` (optional): `memory`, `sqlite`, or `supabase` (default: `memory`).
+- `BOT_SESSION_TTL_MINUTES` (optional): session expiry window for `memory`/`sqlite` backends (default: `90`).
+- `BOT_SESSION_SQLITE_PATH` (optional): local sqlite path for `sqlite` backend (default: `data/bot_sessions.sqlite3`).
 
 ## 2) Run API
 
