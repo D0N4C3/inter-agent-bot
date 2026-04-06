@@ -25,6 +25,7 @@ from flask import Flask, Response, abort, redirect, request
 from app.config import settings
 from app.i18n import load_translations
 from app.scoring import score_application
+from app.web_module import WebModule
 from app.services import (
     add_bot_admin,
     count_admins,
@@ -779,6 +780,7 @@ async def _telegram_webhook(update: Update) -> dict:
                 separators=(",", ":"),
             ),
         )
+        in_reg = registration_in_progress(user_id)
 
         if text == "/start":
             log_non_registration_route(user_id, text, "/start", in_reg)
@@ -1017,8 +1019,6 @@ def telegram_webhook() -> dict:
     if not update:
         return {"ok": True}
     return asyncio.run(_telegram_webhook(update))
-
-from app.web_module import WebModule
 
 web_module = WebModule(onboarding_callback=send_post_approval_onboarding)
 app.register_blueprint(web_module.blueprint)
