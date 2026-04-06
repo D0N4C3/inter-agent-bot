@@ -268,8 +268,16 @@ def _location_keyboard(field: str, answers: dict) -> list[list[str]] | None:
     return [[value] for value in values[:60]]
 
 
+def normalize_phone(phone: str) -> str:
+    value = re.sub(r"[\s\-()]+", "", phone.strip())
+    if value.startswith("0"):
+        return f"+251{value[1:]}"
+    return value
+
+
 def phone_is_valid(phone: str) -> bool:
-    return bool(re.fullmatch(r"(\+251|0)?9\d{8}", phone.strip()))
+    normalized = normalize_phone(phone)
+    return bool(re.fullmatch(r"\+251[79]\d{8}", normalized))
 
 
 async def ask_next(chat_id: int, user_id: int) -> None:
@@ -441,9 +449,11 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
 
     value = text.strip()
 
-    if field == "phone" and not phone_is_valid(value):
-        await send_message(chat_id, tr(user_id, "phone_invalid"))
-        return
+    if field == "phone":
+        if not phone_is_valid(value):
+            await send_message(chat_id, tr(user_id, "phone_invalid"))
+            return
+        value = normalize_phone(value)
 
     if field in {"experience", "has_shop", "can_install"}:
         if value.lower() not in {"yes", "no", "y", "n", "አዎ", "አይደለም"}:
