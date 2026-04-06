@@ -19,9 +19,6 @@ import httpx
 import csv
 from io import StringIO
 from io import BytesIO
-from aiogram import Bot
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, Update
-
 from flask import Flask, Response, abort, redirect, request
 
 from app.config import settings
@@ -67,7 +64,9 @@ PROCESS_PID = os.getpid()
 WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
 
 
-def create_telegram_bot() -> Bot:
+def create_telegram_bot():
+    from aiogram import Bot
+
     return Bot(token=settings.telegram_bot_token)
 
 
@@ -328,6 +327,8 @@ async def send_application_preview(chat_id: int, app_row: dict, user_id: int) ->
 
 
 async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None = None) -> None:
+    from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
     reply_markup = None
     if keyboard:
         reply_markup = ReplyKeyboardMarkup(
@@ -727,7 +728,7 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-async def _telegram_webhook(update: Update) -> dict:
+async def _telegram_webhook(update) -> dict:
     trace_id = secrets.token_hex(4)
     user_id: int | None = None
     chat_id: int | None = None
@@ -1013,6 +1014,8 @@ async def _telegram_webhook(update: Update) -> dict:
 
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook() -> dict:
+    from aiogram.types import Update
+
     payload = request.get_json(silent=True) or {}
     try:
         update = Update.model_validate(payload)
