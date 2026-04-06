@@ -340,39 +340,39 @@ select option { background: #111e32; color: #fff; }
 .territory-info-window {
   background: radial-gradient(circle at top left, #1e293b 0%, #0b1224 65%);
   color: var(--text);
-  padding: 14px;
-  border-radius: 14px;
+  padding: 10px;
+  border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  min-width: 250px;
-  max-width: 300px;
+  min-width: 190px;
+  max-width: 240px;
   box-sizing: border-box;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 12px 30px rgba(2, 6, 23, 0.5);
+    0 8px 18px rgba(2, 6, 23, 0.45);
 }
 
 .territory-info-window__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .territory-info-window__title {
   color: #f8fafc;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
 }
 
 .territory-info-window__status-pill {
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -393,19 +393,19 @@ select option { background: #111e32; color: #fff; }
   color: #cbd5e1;
   font-size: 12px;
   line-height: 1.35;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .territory-info-window__rows {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .territory-info-window__row {
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(30, 41, 59, 0.55);
-  padding: 8px 10px;
+  padding: 7px 8px;
 }
 
 .territory-info-window__label {
@@ -418,16 +418,16 @@ select option { background: #111e32; color: #fff; }
 
 .territory-info-window__value {
   color: #e2e8f0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
 }
 
 #map .gm-style .gm-style-iw-c {
-  background: #0f172a;
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
   padding: 0 !important;
   overflow: visible !important;
 }
@@ -439,6 +439,7 @@ select option { background: #111e32; color: #fff; }
 
 #map .gm-style .gm-style-iw-tc::after {
   background: #0f172a;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
 }
 
 #map .gm-style .gm-ui-hover-effect {
