@@ -649,7 +649,6 @@
       const v = document.getElementById(`filter_${k}`)?.value?.trim();
       if (v) qp.set(k, v);
     });
-    qp.set('occupied_only', '1');
     return qp;
   }
 
@@ -681,10 +680,17 @@
   }
 
   function getTerritoryOccupancyStatus(territory) {
-    if (territory.assigned_application_id) {
+    const assigned = Boolean(
+      territory.assigned_application_id
+      || territory.has_agent
+      || territory.is_locked
+      || territory.availability_status === 'assigned'
+      || Number(territory.assigned_territory_count || 0) > 0
+    );
+    if (assigned) {
       return { label: 'Assigned', color: '#ef4444' };
     }
-    return { label: 'Reserved', color: '#facc15' };
+    return { label: 'Unassigned', color: '#22c55e' };
   }
 
   function escapeHtml(value) {
@@ -720,14 +726,15 @@
       const marker = new google.maps.Marker({
         map: mapInstance,
         position: { lat, lng },
-        title: territory.village || 'Territory',
+        title: territory.woreda || territory.village || 'Woreda',
         icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 7,
+          path: "M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5zm0 2c-4.418 0-8 3.134-8 7v1h16v-1c0-3.866-3.582-7-8-7z",
+          scale: 1.1,
           fillColor: status.color,
           fillOpacity: 1,
           strokeColor: '#ffffff',
-          strokeWeight: 1.5,
+          strokeWeight: 1,
+          anchor: new google.maps.Point(12, 23),
         },
       });
       marker.addListener('click', () => {
@@ -735,18 +742,20 @@
           || (territory.village || 'Territory');
         const statusClass = status.label === 'Assigned'
           ? 'territory-info-window__status-pill--assigned'
-          : 'territory-info-window__status-pill--reserved';
+          : 'territory-info-window__status-pill--unassigned';
         const assignedAgent = territory.assigned_agent_name || (territory.has_agent ? 'Assigned agent' : 'Unassigned');
         infoWindow.setContent(`
           <div class="territory-info-window">
             <div class="territory-info-window__header">
-              <div class="territory-info-window__title">${escapeHtml(territory.village || 'Territory')}</div>
+              <div class="territory-info-window__title">${escapeHtml(territory.woreda || territory.village || 'Woreda')}</div>
               <div class="territory-info-window__status-pill ${statusClass}">${escapeHtml(status.label)}</div>
             </div>
             <div class="territory-info-window__meta">${escapeHtml([territory.region, territory.zone, territory.woreda].filter(Boolean).join(' • ') || territoryName)}</div>
             <div class="territory-info-window__rows">
               ${buildInfoRow('Agent', assignedAgent)}
-              ${buildInfoRow('Territory ID', territory.territory_id)}
+              ${buildInfoRow('Woreda', territory.woreda || territory.village)}
+              ${buildInfoRow('Assigned territories', territory.assigned_territory_count)}
+              ${buildInfoRow('Total territories', territory.territory_count)}
             </div>
           </div>
         `);
@@ -772,8 +781,8 @@
   async function loadTerritories(forceRefresh = false) {
     const items = await fetchTerritories(forceRefresh);
     document.getElementById('kpiTerritories').textContent = items.length;
-    document.getElementById('kpiOpen').textContent   = items.filter(t => !t.is_locked).length;
-    document.getElementById('kpiLocked').textContent = items.filter(t =>  t.is_locked).length;
+    document.getElementById('kpiOpen').textContent   = items.filter(t => getTerritoryOccupancyStatus(t).label === 'Unassigned').length;
+    document.getElementById('kpiLocked').textContent = items.filter(t => getTerritoryOccupancyStatus(t).label === 'Assigned').length;
     renderMarkers(map, items);
     return items.length;
   }

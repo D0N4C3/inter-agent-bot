@@ -383,10 +383,10 @@ select option { background: #111e32; color: #fff; }
   border-color: rgba(248, 113, 113, 0.45);
 }
 
-.territory-info-window__status-pill--reserved {
-  color: #fef08a;
-  background: rgba(217, 119, 6, 0.2);
-  border-color: rgba(250, 204, 21, 0.45);
+.territory-info-window__status-pill--unassigned {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.2);
+  border-color: rgba(34, 197, 94, 0.45);
 }
 
 .territory-info-window__meta {
