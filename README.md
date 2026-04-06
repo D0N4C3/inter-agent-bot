@@ -47,6 +47,15 @@ Required env values (in addition to Phase 1):
 flask --app app.main run --host 0.0.0.0 --port 8000 --debug
 ```
 
+### cPanel / LiteSpeed note
+
+If the domain shows a raw **"Index of /"** directory listing instead of Flask routes, Apache/LiteSpeed is serving the folder directly instead of routing through Passenger. This repo now includes a root `.htaccess` that:
+
+- disables directory listing (`Options -Indexes`)
+- rewrites non-file/non-directory requests to `passenger_wsgi.py`
+
+After deployment, make sure `.htaccess` is present in the app document root and restart the Python app from cPanel.
+
 ## 3) Telegram commands
 
 - `/start`
