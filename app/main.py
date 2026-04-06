@@ -85,6 +85,22 @@ def create_telegram_bot():
     return _TELEGRAM_BOT
 
 
+async def close_telegram_bot() -> None:
+    global _TELEGRAM_BOT
+    bot = _TELEGRAM_BOT
+    if bot is None:
+        return
+    with _TELEGRAM_BOT_LOCK:
+        bot = _TELEGRAM_BOT
+        _TELEGRAM_BOT = None
+    if bot is None:
+        return
+    try:
+        await bot.session.close()
+    except Exception:
+        logger.debug("telegram_bot_close_failed", exc_info=True)
+
+
 def session_fingerprint(session: dict) -> str:
     raw = f"{session.get('step_index', 'na')}:{session.get('answers', {}).get('applicant_type', 'na')}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
@@ -1071,6 +1087,8 @@ async def _telegram_webhook(update) -> dict:
             ),
         )
         return _log_route("exception")
+    finally:
+        await close_telegram_bot()
 
 
 @app.route("/telegram/webhook", methods=["POST"])
