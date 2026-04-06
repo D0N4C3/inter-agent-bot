@@ -265,7 +265,7 @@ def add_bot_admin(telegram_user_id: str, created_by: str | None = None) -> tuple
 
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
     client = get_supabase()
-    query = client.table("territories").select("region,zone,woreda,kebele,village").eq("is_locked", False)
+    query = client.table("territories").select("region,zone,woreda,village").eq("is_locked", False)
     if region:
         query = query.eq("region", region)
     if zone:
@@ -283,7 +283,7 @@ def list_territories_for_map(
 ) -> list[dict]:
     client = get_supabase()
     query = client.table("territories").select(
-        "territory_id,region,zone,woreda,kebele,village,latitude,longitude,is_locked,availability_status,assigned_application_id"
+        "territory_id,region,zone,woreda,village,latitude,longitude,is_locked,availability_status,assigned_application_id"
     )
     if occupied_only:
         query = query.or_("is_locked.eq.true,assigned_application_id.not.is.null")
@@ -398,7 +398,6 @@ def create_territory(
         "region": region.strip(),
         "zone": zone.strip(),
         "woreda": woreda.strip(),
-        "kebele": kebele.strip(),
         "village": village.strip(),
         "latitude": latitude,
         "longitude": longitude,
@@ -411,7 +410,7 @@ def create_territory(
 
 def update_territory(territory_id: str, updates: dict) -> dict:
     safe_updates = {}
-    for key in ("region", "zone", "woreda", "kebele", "village"):
+    for key in ("region", "zone", "woreda", "village"):
         if key in updates and updates[key] is not None:
             safe_updates[key] = str(updates[key]).strip()
     for key in ("latitude", "longitude", "assigned_application_id"):
@@ -493,9 +492,6 @@ def territory_is_available(
             query = query.eq("zone", zone)
         if woreda:
             query = query.eq("woreda", woreda)
-        if kebele:
-            query = query.eq("kebele", kebele)
-
         result = query.limit(1).execute()
     except APIError:
         return True
@@ -513,7 +509,6 @@ def lock_territory_for_application(application_id: str, region: str, zone: str, 
         .eq("region", region)
         .eq("zone", zone)
         .eq("woreda", woreda)
-        .eq("kebele", kebele)
         .eq("village", village)
         .limit(1)
         .execute()
@@ -523,7 +518,6 @@ def lock_territory_for_application(application_id: str, region: str, zone: str, 
         "region": region,
         "zone": zone,
         "woreda": woreda,
-        "kebele": kebele,
         "village": village,
         "is_locked": True,
         "assigned_application_id": application_id,
