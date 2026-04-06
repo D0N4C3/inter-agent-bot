@@ -69,12 +69,20 @@ PROCESS_PID = os.getpid()
 WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
 SESSION_CACHE: dict[int, dict] = {}
 SESSION_CACHE_LOCK = threading.Lock()
+_TELEGRAM_BOT = None
+_TELEGRAM_BOT_LOCK = threading.Lock()
 
 
 def create_telegram_bot():
     from aiogram import Bot
 
-    return Bot(token=settings.telegram_bot_token)
+    global _TELEGRAM_BOT
+    if _TELEGRAM_BOT is not None:
+        return _TELEGRAM_BOT
+    with _TELEGRAM_BOT_LOCK:
+        if _TELEGRAM_BOT is None:
+            _TELEGRAM_BOT = Bot(token=settings.telegram_bot_token)
+    return _TELEGRAM_BOT
 
 
 def session_fingerprint(session: dict) -> str:
