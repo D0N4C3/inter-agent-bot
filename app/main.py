@@ -38,6 +38,9 @@ from app.services import (
     get_training_links,
     is_bot_admin,
     list_territories_for_map,
+    get_bot_session,
+    upsert_bot_session,
+    delete_bot_session,
     save_application,
     send_admin_telegram_alert,
     send_notification_email,
@@ -88,8 +91,18 @@ def log_registration_step(user_id: int, session: dict, reason: str) -> None:
     )
 
 
+def get_session(user_id: int | None) -> dict:
+    if user_id is None:
+        return {}
+    return get_bot_session(str(user_id)) or {}
+
+
+def set_session(user_id: int, data: dict) -> None:
+    upsert_bot_session(str(user_id), data)
+
+
 def drop_registration_session(user_id: int) -> None:
-    sessions.pop(user_id, None)
+    delete_bot_session(str(user_id))
 
 
 logger.info(
@@ -125,7 +138,7 @@ I18N = load_translations()
 
 
 def tr(user_id: int, key: str) -> str:
-    lang = sessions.get(user_id, {}).get("language", "en")
+    lang = get_session(user_id).get("language", "en")
     return I18N.get(lang, I18N["en"]).get(key, I18N["en"].get(key, key))
 
 
@@ -134,7 +147,7 @@ def trf(user_id: int, key: str, **kwargs) -> str:
 
 
 def language_selection_pending(user_id: int) -> bool:
-    return sessions.get(user_id, {}).get("awaiting_language", False)
+    return get_session(user_id).get("awaiting_language", False)
 
 
 def fallback_match_reason(user_id: int, text: str | None) -> str:
@@ -185,7 +198,7 @@ def fallback_match_reason(user_id: int, text: str | None) -> str:
 
 
 def registration_in_progress(user_id: int) -> bool:
-    session = sessions.get(user_id, {})
+    session = get_session(user_id)
     if session.get("registration_active"):
         return True
 
@@ -211,7 +224,6 @@ QUESTION_FLOW = [
     ("terms", "prompt_terms"),
 ]
 
-sessions: dict[int, dict] = {}
 admin_sessions: dict[int, dict] = {}
 
 VALID_PERFORMANCE_LEVELS = {"High", "Medium", "Low"}
@@ -371,7 +383,7 @@ def parse_yes_no(value: str) -> bool:
 
 
 def yes_no_keyboard(user_id: int) -> list[list[str]]:
-    lang = sessions.get(user_id, {}).get("language", "en")
+    lang = get_session(user_id).get("language", "en")
     return YES_NO_KEYBOARD_AM if lang == "am" else YES_NO_KEYBOARD
 
 
@@ -403,7 +415,10 @@ def phone_is_valid(phone: str) -> bool:
 
 
 async def ask_next(chat_id: int, user_id: int) -> None:
-    session = sessions[user_id]
+    session = get_session(user_id)
+    if not session:
+        await send_message(chat_id, tr(user_id, "start_prompt"))
+        return
     index = session["step_index"]
     if index >= len(QUESTION_FLOW):
         await finalize_application(chat_id, user_id)
@@ -450,7 +465,10 @@ async def ask_next(chat_id: int, user_id: int) -> None:
 
 
 async def finalize_application(chat_id: int, user_id: int) -> None:
-    session = sessions[user_id]
+    session = get_session(user_id)
+    if not session:
+        await send_message(chat_id, tr(user_id, "start_prompt"))
+        return
     answers = session["answers"]
 
     territory_valid = territory_is_available(
@@ -461,6 +479,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     )
     if not territory_valid:
         session["step_index"] = next(i for i, (k, _) in enumerate(QUESTION_FLOW) if k == "preferred_territory")
+        set_session(user_id, session)
         await send_message(chat_id, tr(user_id, "territory_unavailable"))
         return
 
@@ -503,13 +522,17 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
 
 
 async def process_registration_input(chat_id: int, user_id: int, text: str | None, message_obj) -> None:
-    session = sessions[user_id]
+    session = get_session(user_id)
+    if not session:
+        await send_message(chat_id, tr(user_id, "start_prompt"))
+        return
     field, _ = QUESTION_FLOW[session["step_index"]]
 
     if field in {"id_front", "id_back", "profile_photo"}:
         if field == "profile_photo" and text and text.strip().lower() in {"skip", "ዝለል"}:
             session["answers"]["profile_photo_url"] = None
             session["step_index"] += 1
+            set_session(user_id, session)
             log_registration_step(user_id, session, reason="profile_photo_skipped")
             await ask_next(chat_id, user_id)
             return
@@ -565,6 +588,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             session["answers"]["profile_photo_url"] = uploaded_url
 
         session["step_index"] += 1
+        set_session(user_id, session)
         log_registration_step(user_id, session, reason=f"{field}_captured")
         await ask_next(chat_id, user_id)
         return
@@ -607,6 +631,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
+    set_session(user_id, session)
     log_registration_step(user_id, session, reason=f"{field}_captured")
     await ask_next(chat_id, user_id)
 
@@ -710,16 +735,17 @@ async def process_admin_input(chat_id: int, user_id: int, text: str | None) -> b
 
 
 async def start_registration(chat_id: int, user_id: int, applicant_type: str) -> None:
-    lang = sessions.get(user_id, {}).get("language", "en")
+    lang = get_session(user_id).get("language", "en")
 
-    sessions[user_id] = {
+    session = {
         "registration_active": True,
         "step_index": 0,
         "answers": {"applicant_type": applicant_type},
         "language": lang,
         "awaiting_language": False,
     }
-    log_registration_step(user_id, sessions[user_id], reason="registration_started")
+    set_session(user_id, session)
+    log_registration_step(user_id, session, reason="registration_started")
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
@@ -772,7 +798,7 @@ async def _telegram_webhook(update) -> dict:
             "unknown",
         )
         text_value = text if text is not None else f"<{message_type}>"
-        session_keys = sorted(sessions.get(user_id, {}).keys()) if user_id is not None else []
+        session_keys = sorted(get_session(user_id).keys()) if user_id is not None else []
         logger.info(
             "telegram_webhook_entry %s",
             json.dumps(
@@ -791,23 +817,25 @@ async def _telegram_webhook(update) -> dict:
 
         if text == "/start":
             log_non_registration_route(user_id, text, "/start", in_reg)
-            previous_language = sessions.get(user_id, {}).get("language", "en")
+            previous_language = get_session(user_id).get("language", "en")
             drop_registration_session(user_id)
-            sessions[user_id] = {"language": previous_language, "awaiting_language": True, "registration_active": False}
+            set_session(user_id, {"language": previous_language, "awaiting_language": True, "registration_active": False})
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return _log_route("start_command")
 
         if text in LANGUAGE_LABELS:
-            sessions.setdefault(user_id, {})
-            sessions[user_id]["language"] = LANGUAGE_LABELS[text]
-            sessions[user_id]["awaiting_language"] = False
+            session = get_session(user_id)
+            session["language"] = LANGUAGE_LABELS[text]
+            session["awaiting_language"] = False
+            set_session(user_id, session)
             await send_message(chat_id, tr(user_id, "welcome"), keyboard=start_keyboard_for_user(user_id))
             return _log_route("language_selected")
 
         if text in {"/language", tr(user_id, "btn_change_language")}:
             log_non_registration_route(user_id, text, "/language", in_reg)
-            sessions.setdefault(user_id, {})
-            sessions[user_id]["awaiting_language"] = True
+            session = get_session(user_id)
+            session["awaiting_language"] = True
+            set_session(user_id, session)
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
             return _log_route("language_command")
 
@@ -979,11 +1007,13 @@ async def _telegram_webhook(update) -> dict:
                 return _log_route("admin_input")
 
         if registration_in_progress(user_id):
-            sessions.setdefault(user_id, {})["registration_active"] = True
+            session = get_session(user_id)
+            session["registration_active"] = True
+            set_session(user_id, session)
             await process_registration_input(chat_id, user_id, text, message_obj)
             return _log_route("registration_input")
 
-        session = sessions.get(user_id, {})
+        session = get_session(user_id)
         awaiting_language = session.get("awaiting_language", False)
         match_reason = fallback_match_reason(user_id, text)
         matched_known_command_or_button = match_reason in {"known_command", "known_registration_button"}
