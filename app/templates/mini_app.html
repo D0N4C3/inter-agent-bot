@@ -387,10 +387,15 @@
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
   const supportedLanguages = ['en', 'am', 'om', 'ti'];
+  const urlLanguage = new URLSearchParams(window.location.search).get('lang');
   function normalizeLanguage(value) {
     return supportedLanguages.includes(value) ? value : null;
   }
-  let currentLanguage = normalizeLanguage(localStorage.getItem('mini_app_language')) || normalizeLanguage(defaultLanguage) || 'en';
+  let currentLanguage =
+    normalizeLanguage(urlLanguage) ||
+    normalizeLanguage(localStorage.getItem('mini_app_language')) ||
+    normalizeLanguage(defaultLanguage) ||
+    'en';
   const MINI_I18N = {{ mini_app_strings|tojson }};
 
   if (tg) { tg.ready(); tg.expand(); }

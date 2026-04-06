@@ -2,6 +2,7 @@ import smtplib
 import sqlite3
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from math import asin, cos, radians, sin, sqrt
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
@@ -47,6 +48,10 @@ _BOT_SESSION_LOCK = threading.Lock()
 _BOT_SESSION_DB_READY = False
 _BOT_SESSION_SQLITE_LAST_CLEANUP: datetime | None = None
 _BOT_SESSION_SQLITE_CLEANUP_INTERVAL = timedelta(minutes=5)
+_BOT_SESSION_SUPABASE_CACHE: dict[str, dict] = {}
+_BOT_SESSION_SUPABASE_CACHE_MAX = 5000
+_BOT_SESSION_SUPABASE_CACHE_TTL = timedelta(seconds=max(settings.bot_session_supabase_cache_ttl_seconds, 10))
+_BOT_SESSION_SUPABASE_SYNC_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bot-session-sync")
 _SUPABASE_CLIENT: Client | None = None
 _SUPABASE_CLIENT_LOCK = threading.Lock()
 
@@ -129,6 +134,31 @@ def _maybe_cleanup_sqlite_expired_sessions(conn: sqlite3.Connection) -> None:
         return
     conn.execute("DELETE FROM bot_sessions_local WHERE expires_at <= ?", (now.isoformat(),))
     _BOT_SESSION_SQLITE_LAST_CLEANUP = now
+
+
+def _clone_session_data(session_data: dict | None) -> dict:
+    return dict(session_data or {})
+
+
+def _write_bot_session_supabase(telegram_user_id: str, session_data: dict, version: int) -> None:
+    client = get_supabase()
+    payload = {
+        "telegram_user_id": telegram_user_id,
+        "session_data": session_data,
+        "updated_at": _utc_now().isoformat(),
+    }
+    client.table("bot_sessions").upsert(payload, on_conflict="telegram_user_id").execute()
+    with _BOT_SESSION_LOCK:
+        row = _BOT_SESSION_SUPABASE_CACHE.get(telegram_user_id)
+        if not row or row.get("version") != version:
+            return
+        row["dirty"] = False
+        row["cache_until"] = _utc_now() + _BOT_SESSION_SUPABASE_CACHE_TTL
+
+
+def _delete_bot_session_supabase(telegram_user_id: str) -> None:
+    client = get_supabase()
+    client.table("bot_sessions").delete().eq("telegram_user_id", telegram_user_id).execute()
 
 
 def list_app_settings() -> list[dict]:
@@ -392,6 +422,14 @@ def get_bot_session(telegram_user_id: str) -> dict | None:
                 return None
             return json.loads(session_json)
 
+    now = _utc_now()
+    with _BOT_SESSION_LOCK:
+        cached = _BOT_SESSION_SUPABASE_CACHE.get(telegram_user_id)
+        if cached and cached.get("cache_until", now) > now:
+            return _clone_session_data(cached.get("session_data"))
+        if cached and cached.get("cache_until", now) <= now:
+            _BOT_SESSION_SUPABASE_CACHE.pop(telegram_user_id, None)
+
     client = get_supabase()
     result = (
         client.table("bot_sessions")
@@ -401,7 +439,17 @@ def get_bot_session(telegram_user_id: str) -> dict | None:
         .execute()
     )
     if result.data:
-        return result.data[0].get("session_data") or {}
+        session_data = _clone_session_data(result.data[0].get("session_data"))
+        with _BOT_SESSION_LOCK:
+            if len(_BOT_SESSION_SUPABASE_CACHE) > _BOT_SESSION_SUPABASE_CACHE_MAX:
+                _BOT_SESSION_SUPABASE_CACHE.clear()
+            _BOT_SESSION_SUPABASE_CACHE[telegram_user_id] = {
+                "session_data": session_data,
+                "cache_until": _utc_now() + _BOT_SESSION_SUPABASE_CACHE_TTL,
+                "dirty": False,
+                "version": 0,
+            }
+        return session_data
     return None
 
 
@@ -442,9 +490,32 @@ def upsert_bot_session(telegram_user_id: str, session_data: dict) -> dict:
             conn.commit()
         return payload
 
-    client = get_supabase()
-    result = client.table("bot_sessions").upsert(base_payload, on_conflict="telegram_user_id").execute()
-    return (result.data or [base_payload])[0]
+    now = _utc_now()
+    with _BOT_SESSION_LOCK:
+        existing = _BOT_SESSION_SUPABASE_CACHE.get(telegram_user_id)
+        if existing and _clone_session_data(existing.get("session_data")) == _clone_session_data(session_data):
+            existing["cache_until"] = now + _BOT_SESSION_SUPABASE_CACHE_TTL
+            return {
+                "telegram_user_id": telegram_user_id,
+                "session_data": _clone_session_data(session_data),
+                "updated_at": now.isoformat(),
+            }
+        version = int(existing.get("version", 0)) + 1 if existing else 1
+        if len(_BOT_SESSION_SUPABASE_CACHE) > _BOT_SESSION_SUPABASE_CACHE_MAX:
+            _BOT_SESSION_SUPABASE_CACHE.clear()
+        _BOT_SESSION_SUPABASE_CACHE[telegram_user_id] = {
+            "session_data": _clone_session_data(session_data),
+            "cache_until": now + _BOT_SESSION_SUPABASE_CACHE_TTL,
+            "dirty": True,
+            "version": version,
+        }
+    _BOT_SESSION_SUPABASE_SYNC_POOL.submit(
+        _write_bot_session_supabase,
+        telegram_user_id,
+        _clone_session_data(session_data),
+        version,
+    )
+    return base_payload
 
 
 def delete_bot_session(telegram_user_id: str) -> None:
@@ -461,8 +532,9 @@ def delete_bot_session(telegram_user_id: str) -> None:
             conn.commit()
         return
 
-    client = get_supabase()
-    client.table("bot_sessions").delete().eq("telegram_user_id", telegram_user_id).execute()
+    with _BOT_SESSION_LOCK:
+        _BOT_SESSION_SUPABASE_CACHE.pop(telegram_user_id, None)
+    _BOT_SESSION_SUPABASE_SYNC_POOL.submit(_delete_bot_session_supabase, telegram_user_id)
 
 
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:

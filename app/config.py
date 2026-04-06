@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     bot_session_backend: str = "memory"
     bot_session_ttl_minutes: int = 90
     bot_session_sqlite_path: str = "data/bot_sessions.sqlite3"
+    bot_session_supabase_cache_ttl_seconds: int = 120
 
     @field_validator(
         "telegram_bot_token",
