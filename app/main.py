@@ -19,7 +19,9 @@ from html import escape
 import httpx
 import csv
 from io import StringIO
-from telegram import Bot, ReplyKeyboardMarkup, Update
+from io import BytesIO
+from aiogram import Bot
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, Update
 
 from flask import Flask, Response, abort, redirect, request
 
@@ -398,7 +400,11 @@ async def send_application_preview(chat_id: int, app_row: dict, user_id: int) ->
 async def send_message(chat_id: int, text: str, keyboard: list[list[str]] | None = None) -> None:
     reply_markup = None
     if keyboard:
-        reply_markup = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True, one_time_keyboard=False)
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text=label) for label in row] for row in keyboard],
+            resize_keyboard=True,
+            one_time_keyboard=False,
+        )
     await create_telegram_bot().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
@@ -564,7 +570,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     drop_registration_session(user_id)
 
 
-async def process_registration_input(chat_id: int, user_id: int, text: str | None, message: dict) -> None:
+async def process_registration_input(chat_id: int, user_id: int, text: str | None, message_obj) -> None:
     session = sessions[user_id]
     field, _ = QUESTION_FLOW[session["step_index"]]
 
@@ -576,16 +582,16 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             await ask_next(chat_id, user_id)
             return
 
-        doc = message.get("document")
-        photos = message.get("photo", [])
+        doc = message_obj.document
+        photos = message_obj.photo or []
         if not doc and not photos:
             await send_message(chat_id, tr(user_id, "file_required"))
             return
 
-        file_id = doc["file_id"] if doc else photos[-1]["file_id"]
+        file_id = doc.file_id if doc else photos[-1].file_id
         file_ext = "jpg"
-        if doc and doc.get("file_name") and "." in doc["file_name"]:
-            file_ext = doc["file_name"].split(".")[-1]
+        if doc and doc.file_name and "." in doc.file_name:
+            file_ext = doc.file_name.split(".")[-1]
 
         tg_file = await create_telegram_bot().get_file(file_id)
         file_size = int(getattr(tg_file, "file_size", 0) or 0)
@@ -593,7 +599,9 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if file_size > max_size:
             await send_message(chat_id, trf(user_id, "file_too_large", size=settings.max_upload_size_mb))
             return
-        file_bytes = bytes(await tg_file.download_as_bytearray())
+        buffer = BytesIO()
+        await create_telegram_bot().download(tg_file, destination=buffer)
+        file_bytes = buffer.getvalue()
 
         guessed_type = mimetypes.guess_type(f"file.{file_ext}")[0]
         content_type = guessed_type or "application/octet-stream"
@@ -811,16 +819,16 @@ async def _telegram_webhook(update: Update) -> dict:
         return type(value).__name__
 
     try:
-        message_obj = update.effective_message
+        message_obj = update.message or update.edited_message
         if not message_obj:
             return _log_route("no_effective_message")
 
-        message = message_obj.to_dict()
+        message = message_obj.model_dump(mode="python")
         if not message:
             return _log_route("empty_message")
 
-        chat_id = message.get("chat", {}).get("id")
-        user_id = message.get("from", {}).get("id")
+        chat_id = message_obj.chat.id if message_obj.chat else None
+        user_id = message_obj.from_user.id if message_obj.from_user else None
         text = message_obj.text
         message_type = next(
             (key for key in ("photo", "document", "voice", "video", "sticker", "location", "contact", "animation") if message.get(key)),
@@ -1039,7 +1047,7 @@ async def _telegram_webhook(update: Update) -> dict:
 
         if registration_in_progress(user_id):
             sessions.setdefault(user_id, {})["registration_active"] = True
-            await process_registration_input(chat_id, user_id, text, message)
+            await process_registration_input(chat_id, user_id, text, message_obj)
             return _log_route("registration_input")
 
         session = sessions.get(user_id, {})
@@ -1058,7 +1066,7 @@ async def _telegram_webhook(update: Update) -> dict:
         return _log_route("start_prompt_fallback")
     except Exception:
         try:
-            update_payload = update.to_dict() if update else {}
+            update_payload = update.model_dump(mode="python") if update else {}
         except Exception:
             update_payload = {"unserializable_update": True}
         logger.exception(
@@ -1080,8 +1088,10 @@ async def _telegram_webhook(update: Update) -> dict:
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook() -> dict:
     payload = request.get_json(silent=True) or {}
-    update = Update.de_json(payload, create_telegram_bot())
-    if not update:
+    try:
+        update = Update.model_validate(payload)
+    except Exception:
+        logger.exception("invalid_telegram_update_payload")
         return {"ok": True}
     return asyncio.run(_telegram_webhook(update))
 
