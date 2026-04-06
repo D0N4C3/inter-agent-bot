@@ -494,9 +494,29 @@ def list_territories_for_map(
     if woreda:
         query = query.eq("woreda", woreda)
     territory_rows = query.limit(5000).execute().data or []
+    woreda_region_rows = list_woreda_regions(region=region, zone=zone, woreda=woreda)
+    woreda_centroid_lookup: dict[tuple[str, str, str], tuple[float | None, float | None]] = {}
+    for item in woreda_region_rows:
+        key = (
+            (item.get("region") or "").strip().lower(),
+            (item.get("zone") or "").strip().lower(),
+            (item.get("woreda") or "").strip().lower(),
+        )
+        woreda_centroid_lookup[key] = (item.get("latitude"), item.get("longitude"))
+
     rows = []
     for territory in territory_rows:
         row = dict(territory)
+        if row.get("latitude") is None or row.get("longitude") is None:
+            key = (
+                (row.get("region") or "").strip().lower(),
+                (row.get("zone") or "").strip().lower(),
+                (row.get("woreda") or "").strip().lower(),
+            )
+            centroid = woreda_centroid_lookup.get(key)
+            if centroid:
+                row["latitude"] = row.get("latitude") if row.get("latitude") is not None else centroid[0]
+                row["longitude"] = row.get("longitude") if row.get("longitude") is not None else centroid[1]
         row["has_agent"] = False
         row["assigned_agent_name"] = None
         row["territory_count"] = 1
