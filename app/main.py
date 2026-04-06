@@ -56,6 +56,7 @@ from app.services import (
 )
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 application = app
 logger = logging.getLogger(__name__)
 app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
@@ -726,6 +727,11 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
 @app.route("/health", methods=["GET"])
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.route("/", methods=["GET"])
+def root() -> Response:
+    return redirect("/health", code=302)
 
 
 async def _telegram_webhook(update) -> dict:
