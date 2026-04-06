@@ -14,7 +14,6 @@ Python + Flask Telegram webhook bot for Inter Ethiopia Solutions with:
 - CSV/Excel exports from admin dashboard.
 - SMTP email + Telegram admin alerts for new applications.
 - English + Amharic language selection for user-facing flow.
-- Incomplete application draft recovery + reminder job endpoint.
 - File validation (size/format) and safer randomized storage filenames.
 - Telegram Mini App UI upgraded to a premium multi-workspace experience:
   registration, territory intelligence, agent dashboard/profile updates,
@@ -67,10 +66,6 @@ Main Telegram menu also includes:
 - Check Territory Availability
 - Contact Support options (Phone / WhatsApp / Email)
 - Admin Management submenu for bot admins (view/filter/update/add admin/dashboard link)
-
-Background job endpoint:
-
-- `POST /jobs/remind-incomplete` (sends reminder messages for stale drafts).
 
 ## 3.1) Mini App + Platform APIs
 
