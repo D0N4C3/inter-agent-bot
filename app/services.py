@@ -103,7 +103,7 @@ def get_training_links() -> dict[str, str]:
 
 def list_woreda_regions(region: str | None = None, zone: str | None = None) -> list[dict]:
     client = get_supabase()
-    query = client.table("woreda_regions").select("sl_no,woreda,zone,region").order("sl_no")
+    query = client.table("woreda_regions").select("sl_no,woreda,zone,region,latitude,longitude").order("sl_no")
     if region:
         query = query.eq("region", region)
     if zone:
@@ -294,6 +294,15 @@ def list_territories_for_map(
     if woreda:
         query = query.eq("woreda", woreda)
     rows = query.limit(500).execute().data or []
+    woreda_region_rows = list_woreda_regions(region=region, zone=zone)
+    woreda_coordinates = {
+        (
+            (item.get("region") or "").strip().lower(),
+            (item.get("zone") or "").strip().lower(),
+            (item.get("woreda") or "").strip().lower(),
+        ): (item.get("latitude"), item.get("longitude"))
+        for item in woreda_region_rows
+    }
     assigned_ids = [row.get("assigned_application_id") for row in rows if row.get("assigned_application_id")]
     assigned_lookup: dict[str, dict] = {}
     if assigned_ids:
@@ -318,6 +327,16 @@ def list_territories_for_map(
     )
 
     for row in rows:
+        key = (
+            (row.get("region") or "").strip().lower(),
+            (row.get("zone") or "").strip().lower(),
+            (row.get("woreda") or "").strip().lower(),
+        )
+        woreda_lat_lon = woreda_coordinates.get(key)
+        if woreda_lat_lon and woreda_lat_lon[0] is not None and woreda_lat_lon[1] is not None:
+            row["latitude"] = woreda_lat_lon[0]
+            row["longitude"] = woreda_lat_lon[1]
+
         assigned_id = row.get("assigned_application_id")
         assigned_app = assigned_lookup.get(assigned_id) if assigned_id else None
         fallback_app = None
