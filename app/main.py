@@ -56,10 +56,50 @@ app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
 app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
+BOOT_TIMESTAMP = datetime.now(timezone.utc).isoformat()
+PROCESS_PID = os.getpid()
+WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
 
 
 def create_telegram_bot() -> Bot:
     return Bot(token=settings.telegram_bot_token)
+
+
+def session_fingerprint(session: dict) -> str:
+    raw = f"{session.get('step_index', 'na')}:{session.get('answers', {}).get('applicant_type', 'na')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+
+
+def log_registration_step(user_id: int, session: dict, reason: str) -> None:
+    logger.info(
+        "registration-step worker=%s pid=%s user_id=%s reason=%s step_index=%s fingerprint=%s",
+        WORKER_IDENTIFIER,
+        PROCESS_PID,
+        user_id,
+        reason,
+        session.get("step_index"),
+        session_fingerprint(session),
+    )
+    persist_registration_state(user_id, session)
+
+
+def persist_registration_state(user_id: int, session: dict) -> None:
+    """Optional next step: persist in DB/Redis keyed by telegram_user_id."""
+    logger.debug(
+        "registration-state-persist-not-configured worker=%s pid=%s user_id=%s fingerprint=%s",
+        WORKER_IDENTIFIER,
+        PROCESS_PID,
+        user_id,
+        session_fingerprint(session),
+    )
+
+
+logger.info(
+    "app-startup worker=%s pid=%s boot_timestamp=%s",
+    WORKER_IDENTIFIER,
+    PROCESS_PID,
+    BOOT_TIMESTAMP,
+)
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
@@ -99,6 +139,53 @@ def language_selection_pending(user_id: int) -> bool:
     return sessions.get(user_id, {}).get("awaiting_language", False)
 
 
+def fallback_match_reason(user_id: int, text: str | None) -> str:
+    if not text:
+        return "unknown_input"
+
+    if text in LANGUAGE_LABELS:
+        return "known_language_label"
+
+    registration_buttons = {
+        tr(user_id, "btn_register_sales"),
+        tr(user_id, "btn_register_installer"),
+        tr(user_id, "btn_register_both"),
+    }
+    if text in registration_buttons:
+        return "known_registration_button"
+
+    known_commands_and_buttons = {
+        "/start",
+        "/language",
+        tr(user_id, "btn_change_language"),
+        "/help",
+        "/contact",
+        tr(user_id, "btn_contact_support"),
+        tr(user_id, "btn_email_support"),
+        tr(user_id, "btn_whatsapp_support"),
+        tr(user_id, "btn_call_support"),
+        "/send",
+        "/status",
+        tr(user_id, "btn_check_status"),
+        "/territory",
+        tr(user_id, "btn_check_territory"),
+        "/admin",
+        "/adminmenu",
+        tr(user_id, "btn_admin_management"),
+        tr(user_id, "btn_back_main_menu"),
+        tr(user_id, "btn_admin_dashboard_link"),
+        tr(user_id, "btn_view_recent_applications"),
+        tr(user_id, "btn_filter_applications"),
+        tr(user_id, "btn_update_application_status"),
+        tr(user_id, "btn_add_admin_user"),
+        "/register",
+    }
+    if text in known_commands_and_buttons or text.startswith(("/addadmin", "/status ", "/territory ")):
+        return "known_command"
+
+    return "unknown_input"
+
+
 def registration_in_progress(user_id: int) -> bool:
     session = sessions.get(user_id, {})
     if session.get("registration_active"):
@@ -130,6 +217,26 @@ sessions: dict[int, dict] = {}
 admin_sessions: dict[int, dict] = {}
 
 VALID_PERFORMANCE_LEVELS = {"High", "Medium", "Low"}
+COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER: Counter[str] = Counter()
+
+
+def log_non_registration_route(user_id: int, text: str | None, route: str, in_reg: bool) -> None:
+    logger.info("telegram.route route=%s in_reg=%s text=%r user_id=%s", route, in_reg, text, user_id)
+    if not in_reg:
+        return
+
+    COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER[route] += 1
+    logger.info(
+        "metric.command_while_registration_active += 1 route=%s count=%s",
+        route,
+        COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER[route],
+    )
+    top_route, top_count = COMMAND_WHILE_REGISTRATION_ACTIVE_COUNTER.most_common(1)[0]
+    logger.info(
+        "metric.command_while_registration_active.top_route route=%s count=%s",
+        top_route,
+        top_count,
+    )
 
 
 def localized_values(key: str) -> set[str]:
@@ -399,6 +506,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if field == "profile_photo" and text and text.strip().lower() in {"skip", "ዝለል"}:
             session["answers"]["profile_photo_url"] = None
             session["step_index"] += 1
+            log_registration_step(user_id, session, reason="profile_photo_skipped")
             await ask_next(chat_id, user_id)
             return
 
@@ -451,6 +559,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             session["answers"]["profile_photo_url"] = uploaded_url
 
         session["step_index"] += 1
+        log_registration_step(user_id, session, reason=f"{field}_captured")
         await ask_next(chat_id, user_id)
         return
 
@@ -492,6 +601,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
+    log_registration_step(user_id, session, reason=f"{field}_captured")
     await ask_next(chat_id, user_id)
 
 
@@ -603,6 +713,7 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
         "language": lang,
         "awaiting_language": False,
     }
+    log_registration_step(user_id, sessions[user_id], reason="registration_started")
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
@@ -667,6 +778,7 @@ async def _telegram_webhook(update: Update) -> dict:
         )
 
         if text == "/start":
+            log_non_registration_route(user_id, text, "/start", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["language"] = sessions[user_id].get("language", "en")
             sessions[user_id]["awaiting_language"] = True
@@ -682,6 +794,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return _log_route("language_selected")
 
         if text in {"/language", tr(user_id, "btn_change_language")}:
+            log_non_registration_route(user_id, text, "/language", in_reg)
             sessions.setdefault(user_id, {})
             sessions[user_id]["awaiting_language"] = True
             await send_message(chat_id, tr(user_id, "choose_language"), keyboard=LANGUAGE_KEYBOARD)
@@ -692,6 +805,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return _log_route("language_pending")
 
         if text in {"/help", "/contact", tr(user_id, "btn_contact_support")}:
+            log_non_registration_route(user_id, text, "support", in_reg)
             await send_message(chat_id, tr(user_id, "support"), keyboard=support_keyboard(user_id))
             return _log_route("support_menu")
 
@@ -740,6 +854,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return _log_route("addadmin_complete")
 
         if text and (text.startswith("/status") or text == tr(user_id, "btn_check_status")):
+            log_non_registration_route(user_id, text, "status", in_reg)
             parts = text.split(maxsplit=1)
             status = None
             if len(parts) == 2:
@@ -754,10 +869,12 @@ async def _telegram_webhook(update: Update) -> dict:
             return _log_route("status_lookup")
 
         if text in {"/territory", tr(user_id, "btn_check_territory")}:
+            log_non_registration_route(user_id, text, "territory", in_reg)
             await send_message(chat_id, tr(user_id, "territory_help"))
             return _log_route("territory_help")
 
         if text and text.startswith("/territory "):
+            log_non_registration_route(user_id, text, "territory_lookup", in_reg)
             territory = text.replace("/territory", "", 1).strip()
             parts = [p.strip() for p in territory.split("|")]
             if len(parts) == 5:
@@ -772,6 +889,7 @@ async def _telegram_webhook(update: Update) -> dict:
             return _log_route("territory_check")
 
         if text in {"/admin", tr(user_id, "btn_admin_management"), "/adminmenu"}:
+            log_non_registration_route(user_id, text, "admin", in_reg)
             await show_admin_menu(chat_id, user_id)
             return _log_route("admin_menu")
 
@@ -854,6 +972,18 @@ async def _telegram_webhook(update: Update) -> dict:
             await process_registration_input(chat_id, user_id, text, message)
             return _log_route("registration_input")
 
+        session = sessions.get(user_id, {})
+        awaiting_language = session.get("awaiting_language", False)
+        match_reason = fallback_match_reason(user_id, text)
+        matched_known_command_or_button = match_reason in {"known_command", "known_registration_button"}
+        logger.info(
+            "route=start_prompt_fallback registration_in_progress=%s awaiting_language=%s step_index=%s matched_known_command_or_button=%s match_reason=%s",
+            registration_in_progress(user_id),
+            awaiting_language,
+            session.get("step_index"),
+            matched_known_command_or_button,
+            match_reason,
+        )
         await send_message(chat_id, tr(user_id, "start_prompt"))
         return _log_route("start_prompt_fallback")
     except Exception:
