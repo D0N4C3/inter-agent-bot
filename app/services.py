@@ -45,15 +45,23 @@ VALID_UI_LANGUAGES = {"en", "am", "om", "ti"}
 _BOT_SESSION_MEMORY_STORE: dict[str, dict] = {}
 _BOT_SESSION_LOCK = threading.Lock()
 _BOT_SESSION_DB_READY = False
+_SUPABASE_CLIENT: Client | None = None
+_SUPABASE_CLIENT_LOCK = threading.Lock()
 
 
 def get_supabase() -> Client:
-    client = create_client(
-        settings.supabase_url,
-        settings.supabase_key,
-        options=ClientOptions(schema=settings.supabase_schema),
-    )
-    return client
+    global _SUPABASE_CLIENT
+    if _SUPABASE_CLIENT is not None:
+        return _SUPABASE_CLIENT
+
+    with _SUPABASE_CLIENT_LOCK:
+        if _SUPABASE_CLIENT is None:
+            _SUPABASE_CLIENT = create_client(
+                settings.supabase_url,
+                settings.supabase_key,
+                options=ClientOptions(schema=settings.supabase_schema),
+            )
+    return _SUPABASE_CLIENT
 
 
 def _bot_session_backend() -> str:
