@@ -428,6 +428,9 @@
     localStorage.setItem('mini_app_language', currentLanguage);
     applyLanguage(currentLanguage);
     refreshLocalizedUI();
+    if (dashboardData && miniSession?.telegram_user_id) {
+      loadDashboard().catch(() => {});
+    }
     if (notify) {
       showToast(t('language_updated'), 'info');
     }
@@ -964,7 +967,7 @@
   async function loadDashboard() {
     const uid = miniSession?.telegram_user_id;
     if (!uid) { setResult({ok:false, error:t('unable_identify_user')}); return; }
-    const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}`);
+    const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}?lang=${encodeURIComponent(currentLanguage || 'en')}`);
     const data = await res.json();
     dashboardData = data.dashboard || null;
     if (data.dashboard) {
