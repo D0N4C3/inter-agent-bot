@@ -624,7 +624,10 @@
       fullscreenControl: false,
       styles: darkMapStyles,
     });
-    infoWindow = new google.maps.InfoWindow();
+    infoWindow = new google.maps.InfoWindow({
+      headerDisabled: true,
+      maxWidth: 240,
+    });
     map.addListener('click', (e) => {
       pickedLatLng = { lat: e.latLng.lat(), lng: e.latLng.lng() };
       setResult({ picked_location: [pickedLatLng.lat.toFixed(6), pickedLatLng.lng.toFixed(6)] });
