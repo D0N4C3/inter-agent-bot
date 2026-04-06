@@ -1,7 +1,11 @@
 import smtplib
+import sqlite3
+import json
+import threading
 from math import asin, cos, radians, sin, sqrt
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
+from pathlib import Path
 
 import httpx
 from postgrest.exceptions import APIError
@@ -38,6 +42,9 @@ VALID_TERRITORY_AVAILABILITY = {
 }
 
 VALID_UI_LANGUAGES = {"en", "am", "om", "ti"}
+_BOT_SESSION_MEMORY_STORE: dict[str, dict] = {}
+_BOT_SESSION_LOCK = threading.Lock()
+_BOT_SESSION_DB_READY = False
 
 
 def get_supabase() -> Client:
@@ -47,6 +54,59 @@ def get_supabase() -> Client:
         options=ClientOptions(schema=settings.supabase_schema),
     )
     return client
+
+
+def _bot_session_backend() -> str:
+    return (settings.bot_session_backend or "memory").strip().lower()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _session_expiry_iso() -> str:
+    expiry = _utc_now() + timedelta(minutes=max(settings.bot_session_ttl_minutes, 1))
+    return expiry.isoformat()
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+def _is_expired(expires_at: str | None) -> bool:
+    expiry = _parse_iso_datetime(expires_at)
+    if not expiry:
+        return False
+    return expiry <= _utc_now()
+
+
+def _sqlite_session_db_path() -> Path:
+    return Path(settings.bot_session_sqlite_path)
+
+
+def _ensure_sqlite_session_db() -> None:
+    global _BOT_SESSION_DB_READY
+    if _BOT_SESSION_DB_READY:
+        return
+    db_path = _sqlite_session_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_sessions_local (
+                telegram_user_id TEXT PRIMARY KEY,
+                session_json TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_bot_sessions_local_expires ON bot_sessions_local(expires_at)")
+        conn.commit()
+    _BOT_SESSION_DB_READY = True
 
 
 def list_app_settings() -> list[dict]:
@@ -276,6 +336,34 @@ def add_bot_admin(telegram_user_id: str, created_by: str | None = None) -> tuple
 
 
 def get_bot_session(telegram_user_id: str) -> dict | None:
+    backend = _bot_session_backend()
+    if backend == "memory":
+        with _BOT_SESSION_LOCK:
+            row = _BOT_SESSION_MEMORY_STORE.get(telegram_user_id)
+            if not row:
+                return None
+            if _is_expired(row.get("expires_at")):
+                _BOT_SESSION_MEMORY_STORE.pop(telegram_user_id, None)
+                return None
+            return dict(row.get("session_data") or {})
+
+    if backend == "sqlite":
+        _ensure_sqlite_session_db()
+        with sqlite3.connect(_sqlite_session_db_path()) as conn:
+            cursor = conn.execute(
+                "SELECT session_json, expires_at FROM bot_sessions_local WHERE telegram_user_id = ? LIMIT 1",
+                (telegram_user_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            session_json, expires_at = row
+            if _is_expired(expires_at):
+                conn.execute("DELETE FROM bot_sessions_local WHERE telegram_user_id = ?", (telegram_user_id,))
+                conn.commit()
+                return None
+            return json.loads(session_json)
+
     client = get_supabase()
     result = (
         client.table("bot_sessions")
@@ -290,17 +378,61 @@ def get_bot_session(telegram_user_id: str) -> dict | None:
 
 
 def upsert_bot_session(telegram_user_id: str, session_data: dict) -> dict:
-    client = get_supabase()
-    payload = {
+    backend = _bot_session_backend()
+    base_payload = {
         "telegram_user_id": telegram_user_id,
         "session_data": session_data,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": _utc_now().isoformat(),
     }
-    result = client.table("bot_sessions").upsert(payload, on_conflict="telegram_user_id").execute()
-    return (result.data or [payload])[0]
+    if backend == "memory":
+        payload = {**base_payload, "expires_at": _session_expiry_iso()}
+        with _BOT_SESSION_LOCK:
+            _BOT_SESSION_MEMORY_STORE[telegram_user_id] = payload
+        return payload
+
+    if backend == "sqlite":
+        payload = {**base_payload, "expires_at": _session_expiry_iso()}
+        _ensure_sqlite_session_db()
+        with sqlite3.connect(_sqlite_session_db_path()) as conn:
+            conn.execute(
+                """
+                INSERT INTO bot_sessions_local (telegram_user_id, session_json, expires_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    session_json=excluded.session_json,
+                    expires_at=excluded.expires_at,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    telegram_user_id,
+                    json.dumps(session_data),
+                    payload["expires_at"],
+                    payload["updated_at"],
+                ),
+            )
+            conn.execute("DELETE FROM bot_sessions_local WHERE expires_at <= ?", (_utc_now().isoformat(),))
+            conn.commit()
+        return payload
+
+    client = get_supabase()
+    result = client.table("bot_sessions").upsert(base_payload, on_conflict="telegram_user_id").execute()
+    return (result.data or [base_payload])[0]
 
 
 def delete_bot_session(telegram_user_id: str) -> None:
+    backend = _bot_session_backend()
+    if backend == "memory":
+        with _BOT_SESSION_LOCK:
+            _BOT_SESSION_MEMORY_STORE.pop(telegram_user_id, None)
+        return
+
+    if backend == "sqlite":
+        _ensure_sqlite_session_db()
+        with sqlite3.connect(_sqlite_session_db_path()) as conn:
+            conn.execute("DELETE FROM bot_sessions_local WHERE telegram_user_id = ?", (telegram_user_id,))
+            conn.commit()
+        return
+
     client = get_supabase()
     client.table("bot_sessions").delete().eq("telegram_user_id", telegram_user_id).execute()
 
