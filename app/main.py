@@ -56,10 +56,50 @@ app = Flask(__name__)
 application = app
 logger = logging.getLogger(__name__)
 app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or "change-me-in-production"
+BOOT_TIMESTAMP = datetime.now(timezone.utc).isoformat()
+PROCESS_PID = os.getpid()
+WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
 
 
 def create_telegram_bot() -> Bot:
     return Bot(token=settings.telegram_bot_token)
+
+
+def session_fingerprint(session: dict) -> str:
+    raw = f"{session.get('step_index', 'na')}:{session.get('answers', {}).get('applicant_type', 'na')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+
+
+def log_registration_step(user_id: int, session: dict, reason: str) -> None:
+    logger.info(
+        "registration-step worker=%s pid=%s user_id=%s reason=%s step_index=%s fingerprint=%s",
+        WORKER_IDENTIFIER,
+        PROCESS_PID,
+        user_id,
+        reason,
+        session.get("step_index"),
+        session_fingerprint(session),
+    )
+    persist_registration_state(user_id, session)
+
+
+def persist_registration_state(user_id: int, session: dict) -> None:
+    """Optional next step: persist in DB/Redis keyed by telegram_user_id."""
+    logger.debug(
+        "registration-state-persist-not-configured worker=%s pid=%s user_id=%s fingerprint=%s",
+        WORKER_IDENTIFIER,
+        PROCESS_PID,
+        user_id,
+        session_fingerprint(session),
+    )
+
+
+logger.info(
+    "app-startup worker=%s pid=%s boot_timestamp=%s",
+    WORKER_IDENTIFIER,
+    PROCESS_PID,
+    BOOT_TIMESTAMP,
+)
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [
@@ -419,6 +459,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if field == "profile_photo" and text and text.strip().lower() in {"skip", "ዝለል"}:
             session["answers"]["profile_photo_url"] = None
             session["step_index"] += 1
+            log_registration_step(user_id, session, reason="profile_photo_skipped")
             await ask_next(chat_id, user_id)
             return
 
@@ -471,6 +512,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             session["answers"]["profile_photo_url"] = uploaded_url
 
         session["step_index"] += 1
+        log_registration_step(user_id, session, reason=f"{field}_captured")
         await ask_next(chat_id, user_id)
         return
 
@@ -512,6 +554,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
+    log_registration_step(user_id, session, reason=f"{field}_captured")
     await ask_next(chat_id, user_id)
 
 
@@ -623,6 +666,7 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
         "language": lang,
         "awaiting_language": False,
     }
+    log_registration_step(user_id, sessions[user_id], reason="registration_started")
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
