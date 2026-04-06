@@ -26,6 +26,7 @@ from app.services import (
     count_admins,
     default_agent_tag,
     get_application,
+    get_application_draft,
     get_agent_dashboard,
     get_latest_status_by_phone,
     get_latest_status_by_telegram_user,
@@ -34,6 +35,8 @@ from app.services import (
     get_training_links,
     is_bot_admin,
     list_territories_for_map,
+    delete_application_draft,
+    save_application_draft,
     save_application,
     send_admin_telegram_alert,
     send_notification_email,
@@ -280,6 +283,55 @@ def phone_is_valid(phone: str) -> bool:
     return bool(re.fullmatch(r"\+251[79]\d{8}", normalized))
 
 
+def persist_registration_draft(user_id: int) -> None:
+    session = sessions.get(user_id) or {}
+    if not session.get("registration_active"):
+        return
+
+    answers = session.get("answers") or {}
+    applicant_type = answers.get("applicant_type")
+    if not applicant_type:
+        return
+
+    try:
+        save_application_draft(
+            telegram_user_id=str(user_id),
+            applicant_type=applicant_type,
+            language=session.get("language", "en"),
+            step_index=int(session.get("step_index", 0)),
+            answers=answers,
+        )
+    except Exception:
+        logger.exception("Failed to persist draft for user_id=%s", user_id)
+
+
+def hydrate_registration_from_draft(user_id: int) -> bool:
+    if sessions.get(user_id, {}).get("registration_active"):
+        return True
+
+    try:
+        draft = get_application_draft(str(user_id))
+    except Exception:
+        logger.exception("Failed to fetch draft for user_id=%s", user_id)
+        return False
+
+    if not draft:
+        return False
+
+    step_index = int(draft.get("step_index", 0))
+    if step_index < 0 or step_index >= len(QUESTION_FLOW):
+        return False
+
+    sessions[user_id] = {
+        "registration_active": True,
+        "step_index": step_index,
+        "answers": draft.get("answers") or {},
+        "language": draft.get("language") or sessions.get(user_id, {}).get("language", "en"),
+        "awaiting_language": False,
+    }
+    return True
+
+
 async def ask_next(chat_id: int, user_id: int) -> None:
     session = sessions[user_id]
     index = session["step_index"]
@@ -374,6 +426,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     }
 
     save_application(record)
+    delete_application_draft(str(user_id))
     send_notification_email(record)
     send_admin_telegram_alert(record)
     await send_message(chat_id, f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}")
@@ -388,6 +441,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         if field == "profile_photo" and text and text.strip().lower() in {"skip", "ዝለል"}:
             session["answers"]["profile_photo_url"] = None
             session["step_index"] += 1
+            persist_registration_draft(user_id)
             await ask_next(chat_id, user_id)
             return
 
@@ -440,6 +494,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
             session["answers"]["profile_photo_url"] = uploaded_url
 
         session["step_index"] += 1
+        persist_registration_draft(user_id)
         await ask_next(chat_id, user_id)
         return
 
@@ -468,6 +523,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
     elif field == "terms":
         if value.lower() in {"cancel", "ሰርዝ"}:
             sessions.pop(user_id, None)
+            delete_application_draft(str(user_id))
             await send_message(chat_id, tr(user_id, "application_cancelled"))
             return
         if value.lower() not in {"i agree", "እስማማለሁ"}:
@@ -481,6 +537,7 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
         session["answers"][field] = value
 
     session["step_index"] += 1
+    persist_registration_draft(user_id)
     await ask_next(chat_id, user_id)
 
 
@@ -592,6 +649,7 @@ async def start_registration(chat_id: int, user_id: int, applicant_type: str) ->
         "language": lang,
         "awaiting_language": False,
     }
+    persist_registration_draft(user_id)
     await send_message(chat_id, tr(user_id, "registration_started"))
     await ask_next(chat_id, user_id)
 
@@ -797,6 +855,9 @@ async def _telegram_webhook(update: Update) -> dict:
             handled = await process_admin_input(chat_id, user_id, text)
             if handled:
                 return {"ok": True}
+
+        if not sessions.get(user_id, {}).get("registration_active"):
+            hydrate_registration_from_draft(user_id)
 
         if sessions.get(user_id, {}).get("registration_active"):
             await process_registration_input(chat_id, user_id, text, message)
