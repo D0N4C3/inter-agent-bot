@@ -684,6 +684,24 @@
     return { label: 'Reserved', color: '#facc15' };
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function buildInfoRow(label, value) {
+    return `
+      <div class="territory-info-window__row">
+        <div class="territory-info-window__label">${escapeHtml(label)}</div>
+        <div class="territory-info-window__value">${escapeHtml(value || '—')}</div>
+      </div>
+    `;
+  }
+
   function renderMarkers(mapInstance, territories) {
     clearTerritoryOverlays();
     const bounds = new google.maps.LatLngBounds();
@@ -710,12 +728,23 @@
         },
       });
       marker.addListener('click', () => {
-        const territoryName = [territory.region, territory.woreda, territory.village].filter(Boolean).join(' / ')
+        const territoryName = [territory.region, territory.zone, territory.woreda, territory.village].filter(Boolean).join(' / ')
           || (territory.village || 'Territory');
+        const statusClass = status.label === 'Assigned'
+          ? 'territory-info-window__status-pill--assigned'
+          : 'territory-info-window__status-pill--reserved';
+        const assignedAgent = territory.assigned_agent_name || (territory.has_agent ? 'Assigned agent' : 'Unassigned');
         infoWindow.setContent(`
           <div class="territory-info-window">
-            <div class="territory-info-window__title">${territoryName}</div>
-            <div class="territory-info-window__meta">Status: ${status.label}</div>
+            <div class="territory-info-window__header">
+              <div class="territory-info-window__title">${escapeHtml(territory.village || 'Territory')}</div>
+              <div class="territory-info-window__status-pill ${statusClass}">${escapeHtml(status.label)}</div>
+            </div>
+            <div class="territory-info-window__meta">${escapeHtml([territory.region, territory.zone, territory.woreda].filter(Boolean).join(' • ') || territoryName)}</div>
+            <div class="territory-info-window__rows">
+              ${buildInfoRow('Agent', assignedAgent)}
+              ${buildInfoRow('Territory ID', territory.territory_id)}
+            </div>
           </div>
         `);
         infoWindow.open({ anchor: marker, map: mapInstance });
