@@ -598,6 +598,7 @@
   let dashboardData = null;
   let rankingsData = null;
   const territoryFetchCache = new Map();
+  const unassignedMarkerMinZoom = 7;
   const darkMapStyles = [
     { elementType: 'geometry', stylers: [{ color: '#111827' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#111827' }] },
@@ -631,6 +632,9 @@
     map.addListener('click', (e) => {
       pickedLatLng = { lat: e.latLng.lat(), lng: e.latLng.lng() };
       setResult({ picked_location: [pickedLatLng.lat.toFixed(6), pickedLatLng.lng.toFixed(6)] });
+    });
+    map.addListener('zoom_changed', () => {
+      applyMarkerVisibilityByZoom(map.getZoom() || 0);
     });
   }
 
@@ -691,6 +695,30 @@
       return { label: 'Assigned', color: '#ef4444' };
     }
     return { label: 'Unassigned', color: '#22c55e' };
+  }
+
+  function isAssignedMarker(marker) {
+    return marker?.__occupancyStatus === 'Assigned';
+  }
+
+  function applyMarkerVisibilityByZoom(zoomLevel) {
+    const zoom = Number(zoomLevel || 0);
+    const showUnassigned = zoom >= unassignedMarkerMinZoom;
+    territoryMarkers.forEach(marker => {
+      const assigned = isAssignedMarker(marker);
+      marker.setVisible(assigned || showUnassigned);
+    });
+    if (territoryMarkerCluster?.clearMarkers) {
+      territoryMarkerCluster.clearMarkers();
+      territoryMarkerCluster = null;
+    }
+    const visibleUnassignedMarkers = territoryMarkers.filter(marker => !isAssignedMarker(marker) && marker.getVisible());
+    if (window.markerClusterer?.MarkerClusterer && visibleUnassignedMarkers.length > 50) {
+      territoryMarkerCluster = new window.markerClusterer.MarkerClusterer({
+        map,
+        markers: visibleUnassignedMarkers,
+      });
+    }
   }
 
   function escapeHtml(value) {
@@ -754,13 +782,14 @@
             <div class="territory-info-window__rows">
               ${buildInfoRow('Agent', assignedAgent)}
               ${buildInfoRow('Woreda', territory.woreda || territory.village)}
-              ${buildInfoRow('Assigned territories', territory.assigned_territory_count)}
-              ${buildInfoRow('Total territories', territory.territory_count)}
+              ${buildInfoRow('Territory', territory.village || territory.woreda)}
+              ${buildInfoRow('Status', status.label)}
             </div>
           </div>
         `);
         infoWindow.open({ anchor: marker, map: mapInstance });
       });
+      marker.__occupancyStatus = status.label;
       territoryMarkers.push(marker);
       bounds.extend({ lat, lng });
     });
@@ -770,12 +799,7 @@
     if (territoryMarkers.length > 1) {
       mapInstance.fitBounds(bounds, 32);
     }
-    if (window.markerClusterer?.MarkerClusterer && territoryMarkers.length > 50) {
-      territoryMarkerCluster = new window.markerClusterer.MarkerClusterer({
-        map: mapInstance,
-        markers: territoryMarkers,
-      });
-    }
+    applyMarkerVisibilityByZoom(mapInstance.getZoom() || 0);
   }
 
   async function loadTerritories(forceRefresh = false) {
@@ -1263,11 +1287,16 @@
         setSelectOptions('filter_zone', getUniqueValues('zone', { region }), t('all_zones'));
         const zone = document.getElementById('filter_zone').value;
         setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), t('all_woredas'));
+        if (map) loadTerritories(true).catch(() => null);
       });
       document.getElementById('filter_zone')?.addEventListener('change', () => {
         const region = document.getElementById('filter_region').value;
         const zone = document.getElementById('filter_zone').value;
         setSelectOptions('filter_woreda', getUniqueValues('woreda', { region, zone }), t('all_woredas'));
+        if (map) loadTerritories(true).catch(() => null);
+      });
+      document.getElementById('filter_woreda')?.addEventListener('change', () => {
+        if (map) loadTerritories(true).catch(() => null);
       });
       await loadDashboard();
       if (map) await loadTerritories();
