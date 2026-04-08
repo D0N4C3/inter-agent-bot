@@ -1498,11 +1498,15 @@
       await loadDashboard();
       if (map) await loadTerritories();
       await loadRankings();
-      const requestedTab =
+      const requestedTabRaw =
         new URLSearchParams(window.location.search).get('tab') ||
-        (getTelegramStartParam().toLowerCase().includes('territor') ? 'territories' : '');
-      if (requestedTab === 'territories') {
+        getTelegramStartParam() ||
+        '';
+      const requestedTab = String(requestedTabRaw).toLowerCase();
+      if (requestedTab.includes('territor')) {
         switchTab('territories');
+      } else if (requestedTab.includes('dashboard') || requestedTab.includes('agent')) {
+        switchTab('agent');
       }
     } catch(e) {
       console.warn(t('init_error'), e);
