@@ -67,8 +67,6 @@ app.secret_key = settings.flask_secret_key or settings.admin_dashboard_token or 
 BOOT_TIMESTAMP = datetime.now(timezone.utc).isoformat()
 PROCESS_PID = os.getpid()
 WORKER_IDENTIFIER = f"{os.getenv('HOSTNAME', 'local')}:{PROCESS_PID}:{current_process().name}"
-SESSION_CACHE: dict[int, dict] = {}
-SESSION_CACHE_LOCK = threading.Lock()
 _TELEGRAM_BOT = None
 _TELEGRAM_BOT_LOCK = threading.Lock()
 
@@ -121,19 +119,7 @@ def log_registration_step(user_id: int, session: dict, reason: str) -> None:
 def get_session(user_id: int | None) -> dict:
     if user_id is None:
         return {}
-    with SESSION_CACHE_LOCK:
-        cached = SESSION_CACHE.get(user_id)
-    if cached is not None:
-        return dict(cached)
-
-    session = get_bot_session(str(user_id)) or {}
-    with SESSION_CACHE_LOCK:
-        if len(SESSION_CACHE) > 5000:
-            oldest_keys = list(SESSION_CACHE.keys())[:500]
-            for key in oldest_keys:
-                SESSION_CACHE.pop(key, None)
-        SESSION_CACHE[user_id] = dict(session)
-    return session
+    return get_bot_session(str(user_id)) or {}
 
 
 def set_session(user_id: int, data: dict) -> None:
@@ -141,14 +127,10 @@ def set_session(user_id: int, data: dict) -> None:
         upsert_bot_session(str(user_id), data)
     except Exception:
         logger.exception("set_session.db_write_failed user_id=%s", user_id)
-    with SESSION_CACHE_LOCK:
-        SESSION_CACHE[user_id] = dict(data)
 
 
 def drop_registration_session(user_id: int) -> None:
     delete_bot_session(str(user_id))
-    with SESSION_CACHE_LOCK:
-        SESSION_CACHE.pop(user_id, None)
 
 
 logger.info(
