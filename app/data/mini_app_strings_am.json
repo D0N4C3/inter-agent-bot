@@ -88,8 +88,8 @@
   "status_approved": "ጸድቋል",
   "status_rejected": "ውድቅ ተደርጓል",
   "status_pending": "በጥበቃ ላይ",
-  "agent_tag_sales": "ሽያጭ",
-  "agent_tag_sales_agent": "ሽያጭ",
+  "agent_tag_sales": "የሽያጭ ወኪል",
+  "agent_tag_sales_agent": "የሽያጭ ወኪል",
   "agent_tag_installer": "ገጣሚ",
   "agent_tag_installer_agent": "ገጣሚ",
   "agent_tag_hybrid": "ቅይጥ",
@@ -148,5 +148,6 @@
   "update_profile": "መገለጫን አሻሽል",
   "save_profile": "መገለጫን አስቀምጥ",
   "preferred_territory_label": "ተመራጭ ክልል",
-  "rankings_sub": "በሽያጭ እና በመገጣጠም ስራ ከፍተኛ አፈጻጸም ያላቸው ወኪሎች።"
+  "rankings_sub": "በሽያጭ እና በመገጣጠም ስራ ከፍተኛ አፈጻጸም ያላቸው ወኪሎች።",
+  "profile_photo_required_label": "የመገለጫ ፎቶ"
 }
