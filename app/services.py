@@ -789,7 +789,6 @@ def create_territory(
     region: str,
     zone: str,
     woreda: str,
-    kebele: str,
     village: str,
     latitude: float | None = None,
     longitude: float | None = None,
@@ -886,7 +885,6 @@ def territory_is_available(
     region: str | None = None,
     zone: str | None = None,
     woreda: str | None = None,
-    kebele: str | None = None,
 ) -> bool:
     client = get_supabase()
     try:
@@ -906,7 +904,7 @@ def territory_is_available(
     return not bool(result.data[0]["is_locked"])
 
 
-def lock_territory_for_application(application_id: str, region: str, zone: str, woreda: str, kebele: str, village: str) -> None:
+def lock_territory_for_application(application_id: str, region: str, zone: str, woreda: str, village: str) -> None:
     client = get_supabase()
     lookup = (
         client.table("territories")
@@ -996,7 +994,6 @@ def update_application_status(
             region=application["region"],
             zone=application["zone"],
             woreda=application["woreda"],
-            kebele=application["kebele"],
         ):
             raise ValueError("Territory already locked")
 
@@ -1005,7 +1002,6 @@ def update_application_status(
             region=application["region"],
             zone=application["zone"],
             woreda=application["woreda"],
-            kebele=application["kebele"],
             village=village,
         )
         updates["preferred_territory"] = village
@@ -1081,7 +1077,6 @@ def get_agent_dashboard(telegram_user_id: str) -> dict | None:
             "region": application["region"],
             "zone": application["zone"],
             "woreda": application["woreda"],
-            "kebele": application["kebele"],
             "village": application["preferred_territory"],
         },
         "training": training,
@@ -1246,7 +1241,6 @@ Phone: {application['phone']}
 Region: {application['region']}
 Zone: {application['zone']}
 Woreda: {application['woreda']}
-Kebele: {application['kebele']}
 Town/Village: {application['village']}
 Experience: {'Yes' if application['experience'] else 'No'}
 Experience Years: {application['experience_years']}

@@ -91,7 +91,6 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
             "region": payload["region"],
             "zone": payload["zone"],
             "woreda": payload["woreda"],
-            "kebele": payload.get("kebele") or "N/A",
             "village": payload.get("village") or payload.get("woreda"),
             "experience": bool(payload.get("experience", False)),
             "experience_years": int(payload.get("experience_years") or 0),

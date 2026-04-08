@@ -84,7 +84,7 @@ After deployment, make sure `.htaccess` is present in the app document root and 
 - language selection via `/start` then choosing **English** or **አማርኛ**
 - `/status` (or `/status <phone>`)
 - `/territory` and `/territory <village>`
-- `/territory <region|zone|woreda|kebele|village>`
+- `/territory <region|zone|woreda|village>`
 - `/help`
 - `/contact`
 - `/admin` (opens admin management menu for bot admins)

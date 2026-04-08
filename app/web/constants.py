@@ -10,7 +10,6 @@ EXPORT_FIELDNAMES = [
     "region",
     "zone",
     "woreda",
-    "kebele",
     "village",
     "preferred_territory",
     "qualification_score",
