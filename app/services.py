@@ -1194,6 +1194,30 @@ def get_rankings() -> dict:
         if hasattr(client, "rpc")
         else []
     )
+
+    def filter_by_applicant_type(items: list[dict] | None, allowed_types: set[str]) -> list[dict]:
+        application_ids = [row.get("application_id") for row in (items or []) if row.get("application_id")]
+        if not application_ids:
+            return items or []
+        type_rows = (
+            client.table("agent_applications")
+            .select("application_id,applicant_type")
+            .in_("application_id", application_ids)
+            .execute()
+            .data
+            or []
+        )
+        type_map = {row["application_id"]: row.get("applicant_type") for row in type_rows if row.get("application_id")}
+        filtered: list[dict] = []
+        for row in items or []:
+            applicant_type = type_map.get(row.get("application_id"))
+            if applicant_type in allowed_types:
+                filtered.append(row)
+        return filtered
+
+    sales = filter_by_applicant_type(sales, {"sales_only", "sales_installer"})
+    installers = filter_by_applicant_type(installers, {"installer_only", "sales_installer"})
+
     def sanitize(items: list[dict] | None) -> list[dict]:
         safe_rows: list[dict] = []
         for row in items or []:

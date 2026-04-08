@@ -174,6 +174,7 @@ as $$
   from inter_agent_apply.agent_applications app
   left join inter_agent_apply.agent_performance_events ev
     on ev.application_id = app.application_id and ev.event_type = 'sale_closed'
+  where app.applicant_type in ('sales_only', 'sales_installer')
   group by app.application_id, app.full_name, app.phone
   order by total_sales desc, app.submitted_at desc
   limit greatest(result_limit, 1);
@@ -196,6 +197,7 @@ as $$
   from inter_agent_apply.agent_applications app
   left join inter_agent_apply.agent_performance_events ev
     on ev.application_id = app.application_id and ev.event_type = 'installer_job_completed'
+  where app.applicant_type in ('installer_only', 'sales_installer')
   group by app.application_id, app.full_name, app.phone
   order by completed_jobs desc, app.submitted_at desc
   limit greatest(result_limit, 1);
