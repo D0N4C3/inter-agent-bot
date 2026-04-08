@@ -420,6 +420,14 @@ def get_bot_session(telegram_user_id: str) -> dict | None:
                 return None
             return json.loads(session_json)
 
+    now = _utc_now()
+    with _BOT_SESSION_LOCK:
+        cached = _BOT_SESSION_SUPABASE_CACHE.get(telegram_user_id)
+        if cached and cached.get("dirty") and cached.get("cache_until", now) > now:
+            return _clone_session_data(cached.get("session_data"))
+        if cached and cached.get("cache_until", now) <= now:
+            _BOT_SESSION_SUPABASE_CACHE.pop(telegram_user_id, None)
+
     client = get_supabase()
     try:
         result = (
