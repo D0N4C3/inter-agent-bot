@@ -22,6 +22,15 @@ VALID_STATUSES = {
     "Rejected",
     "More Info Required",
 }
+STATUS_ALIASES = {
+    "submitted": "Submitted",
+    "under review": "Under Review",
+    "under_review": "Under Review",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "more info required": "More Info Required",
+    "more_info_required": "More Info Required",
+}
 
 VALID_AGENT_TAGS = {
     "Sales Agent",
@@ -79,6 +88,10 @@ def _bot_session_backend() -> str:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def normalize_key(value: str | None) -> str:
+    return "_".join((value or "").strip().lower().replace("-", " ").split())
 
 
 def _session_expiry_iso() -> str:
@@ -968,14 +981,15 @@ def update_application_status(
     performance_potential: str | None = None,
     internal_remarks: str | None = None,
 ) -> dict:
-    if status not in VALID_STATUSES:
+    normalized_status = STATUS_ALIASES.get(str(status or "").strip().lower())
+    if not normalized_status:
         raise ValueError("Invalid status")
 
     application = get_application(application_id)
     if not application:
         raise ValueError("Application not found")
 
-    updates: dict = {"status": status}
+    updates: dict = {"status": normalized_status}
     if admin_notes is not None:
         updates["admin_notes"] = admin_notes
     if agent_tag is not None:
@@ -987,7 +1001,7 @@ def update_application_status(
     if internal_remarks is not None:
         updates["internal_remarks"] = internal_remarks
 
-    if status == "Approved":
+    if normalized_status == "Approved":
         village = territory_village or application["preferred_territory"]
         if not territory_is_available(
             village,
@@ -1007,7 +1021,18 @@ def update_application_status(
         updates["preferred_territory"] = village
 
     result = client = get_supabase()
-    updated = client.table("agent_applications").update(updates).eq("application_id", application_id).execute()
+    try:
+        updated = client.table("agent_applications").update(updates).eq("application_id", application_id).execute()
+    except APIError as exc:
+        message = str(getattr(exc, "message", "") or exc)
+        if "agent_applications_status_check" not in message:
+            raise
+        snake_case_status = normalize_key(normalized_status)
+        if not snake_case_status:
+            raise
+        retry_updates = dict(updates)
+        retry_updates["status"] = snake_case_status
+        updated = client.table("agent_applications").update(retry_updates).eq("application_id", application_id).execute()
     return updated.data[0]
 
 
@@ -1225,6 +1250,27 @@ def get_rankings() -> dict:
     return {
         "top_sales_agents": sanitize(sales),
         "top_installers": sanitize(installers),
+    }
+
+
+def get_public_agent_profile(application_id: str) -> dict | None:
+    application = get_application(application_id)
+    if not application:
+        return None
+    return {
+        "application_id": application.get("application_id"),
+        "full_name": application.get("full_name"),
+        "agent_tag": application.get("agent_tag"),
+        "status": application.get("status"),
+        "profile_photo_url": application.get("profile_photo_url"),
+        "region": application.get("region"),
+        "zone": application.get("zone"),
+        "woreda": application.get("woreda"),
+        "preferred_territory": application.get("preferred_territory"),
+        "work_type": application.get("work_type"),
+        "applicant_type": application.get("applicant_type"),
+        "qualification_score": application.get("qualification_score"),
+        "performance_potential": application.get("performance_potential"),
     }
 
 

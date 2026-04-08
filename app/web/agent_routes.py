@@ -8,6 +8,7 @@ from app.services import (
     create_performance_event,
     get_agent_dashboard,
     get_application,
+    get_public_agent_profile,
     get_training_links,
     get_training_modules_for_agent,
     get_rankings,
@@ -95,3 +96,11 @@ def register_agent_routes(blueprint: Blueprint) -> None:
     @blueprint.get("/api/rankings")
     def rankings_api() -> dict:
         return {"ok": True, "rankings": get_rankings()}
+
+    @blueprint.get("/api/agents/<application_id>/public-profile")
+    def agent_public_profile_api(application_id: str) -> dict:
+        mini_app_session(required=True)
+        profile = get_public_agent_profile(application_id)
+        if not profile:
+            return {"ok": False, "error": "Agent not found"}, 404
+        return {"ok": True, "profile": profile}

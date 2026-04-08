@@ -241,6 +241,13 @@
         <div class="section-sub" data-i18n="my_dashboard_sub">View your application status, profile, and key performance insights.</div>
       </div>
 
+      <div id="dashboardAccessGate" class="dashboard-gate hidden">
+        <div class="dashboard-gate__icon">🛡️</div>
+        <div class="dashboard-gate__title" data-i18n="dashboard_locked_title">Dashboard locked</div>
+        <div class="dashboard-gate__desc" data-i18n="dashboard_locked_desc">Submit your registration first to unlock dashboard insights and training progress.</div>
+        <button class="btn btn-primary" type="button" onclick="switchTab('registration')" data-i18n="apply_as_agent">Apply as Agent</button>
+      </div>
+
       <div id="agentProfileCard" style="display:none">
         <div class="profile-card">
           <div class="profile-avatar" id="profileCardAvatar">👤</div>
@@ -326,6 +333,22 @@
     </section>
 
   </main>
+</div>
+
+<div id="agentProfileModal" class="agent-modal hidden" role="dialog" aria-modal="true" aria-labelledby="agentProfileModalName">
+  <div class="agent-modal__backdrop" onclick="closeAgentProfileModal()"></div>
+  <div class="agent-modal__card">
+    <button class="agent-modal__close" type="button" onclick="closeAgentProfileModal()" aria-label="Close profile">×</button>
+    <div class="agent-modal__header">
+      <div class="agent-modal__avatar" id="agentModalAvatar">👤</div>
+      <div class="agent-modal__identity">
+        <div class="agent-modal__name" id="agentProfileModalName">—</div>
+        <div class="agent-modal__meta" id="agentModalMeta">—</div>
+      </div>
+      <div class="profile-status-pill" id="agentModalStatusPill">—</div>
+    </div>
+    <div class="agent-modal__grid" id="agentModalGrid"></div>
+  </div>
 </div>
 
 <!-- ── BOTTOM NAV (mobile) ── -->
@@ -524,7 +547,7 @@
         cardMeta.textContent = [localizedTag, localizedStatus].filter(Boolean).join(' · ');
       }
       if (statusPill) {
-        statusPill.textContent = localizeEnum(profile.status, 'status') || t('submitted');
+        updateStatusPill(statusPill, profile.status);
       }
     }
     renderRankings();
@@ -624,7 +647,20 @@
   function localizeEnum(value, prefix) {
     const normalized = normalizeKey(value);
     if (!normalized) return '';
-    return t(`${prefix}_${normalized}`);
+    const key = `${prefix}_${normalized}`;
+    const translated = t(key);
+    return translated === key ? (value || '') : translated;
+  }
+
+  function normalizeStatus(value) {
+    return normalizeKey(value);
+  }
+
+  function updateStatusPill(el, status) {
+    if (!el) return;
+    const normalizedStatus = normalizeStatus(status);
+    el.textContent = localizeEnum(status, 'status') || t('submitted');
+    el.dataset.status = normalizedStatus;
   }
 
   function getLocalizedModuleField(module, field) {
@@ -661,7 +697,7 @@
     if (tabName === 'territories' && map) {
       setTimeout(() => google.maps.event.trigger(map, 'resize'), 100);
     }
-    if (tabName === 'agent' && miniSession?.telegram_user_id) {
+      if (tabName === 'agent' && miniSession?.telegram_user_id) {
       loadDashboard().catch(() => {});
     }
   }
@@ -1121,6 +1157,17 @@
     const res = await apiFetch(`/api/agent/dashboard/${encodeURIComponent(uid)}?lang=${encodeURIComponent(currentLanguage || 'en')}`);
     const data = await res.json();
     dashboardData = data.dashboard || null;
+    const gate = document.getElementById('dashboardAccessGate');
+    const profileCard = document.getElementById('agentProfileCard');
+    const dashboardHighlights = document.getElementById('dashboardHighlights');
+    if (!data.dashboard) {
+      if (gate) gate.classList.remove('hidden');
+      if (profileCard) profileCard.style.display = 'none';
+      if (dashboardHighlights) dashboardHighlights.innerHTML = '';
+      setResult({ ok: false, error: t('dashboard_locked_desc') });
+      return;
+    }
+    if (gate) gate.classList.add('hidden');
     if (data.dashboard) {
       const profile   = data.dashboard.profile   || data.dashboard;
       const territory = data.dashboard.territory || data.dashboard;
@@ -1154,10 +1201,7 @@
         }
       }
       const statusPill = document.getElementById('profileStatusPill');
-      if (statusPill) {
-        statusPill.textContent = localizeEnum(profile.status, 'status') || t('submitted');
-        statusPill.dataset.status = (profile.status || '').toLowerCase();
-      }
+      updateStatusPill(statusPill, profile.status);
       renderDashboardHighlights(data.dashboard);
       renderTrainingModules();
     }
@@ -1268,6 +1312,7 @@
     const installs = perfRows.filter(item => item.event_type === 'installer_job_completed').reduce((sum, item) => sum + Number(item.event_value || 0), 0);
     container.innerHTML = `
       <div class="highlight-card"><div class="highlight-label">${t('application_id')}</div><div class="highlight-value">${profile.application_id || '—'}</div></div>
+      <div class="highlight-card"><div class="highlight-label">${t('field_status') || 'Status'}</div><div class="highlight-value">${localizeEnum(profile.status, 'status') || profile.status || '—'}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('territory')}</div><div class="highlight-value">${[territory.region, territory.zone, territory.woreda].filter(Boolean).join(' / ') || '—'}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('training_progress')}</div><div class="highlight-value">${trainingCompleted}/${trainingTotal || 0}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('sales_logged')}</div><div class="highlight-value">${sales}</div></div>
@@ -1318,11 +1363,11 @@
       `;
     }
     const rows = items.map((item, idx) => `
-      <div class="rank-item">
+      <button type="button" class="rank-item" onclick="openAgentProfileModal('${item.application_id || ''}')">
         <div class="rank-num">${idx + 1}</div>
         <div class="rank-name">${item.full_name || t('na')}</div>
         <div class="rank-score">${item[valueKey] ?? 0}${valueSuffix}</div>
-      </div>
+      </button>
     `).join('');
     return `
       <div class="rank-section">
@@ -1357,6 +1402,53 @@
     try { await loadRankings(); }
     catch(e) { setResult({ok:false, error:t('failed_rankings')}); }
     finally  { setBtnLoading(btn, false); }
+  }
+
+  async function openAgentProfileModal(applicationId) {
+    if (!applicationId) return;
+    const res = await apiFetch(`/api/agents/${encodeURIComponent(applicationId)}/public-profile`);
+    const data = await res.json();
+    if (!res.ok || !data.ok || !data.profile) {
+      setResult({ ok: false, error: t('failed_load_agent_profile') });
+      return;
+    }
+    const profile = data.profile;
+    const modal = document.getElementById('agentProfileModal');
+    const avatar = document.getElementById('agentModalAvatar');
+    const name = document.getElementById('agentProfileModalName');
+    const meta = document.getElementById('agentModalMeta');
+    const statusPill = document.getElementById('agentModalStatusPill');
+    const grid = document.getElementById('agentModalGrid');
+
+    if (avatar) {
+      if (profile.profile_photo_url) {
+        avatar.innerHTML = `<img src="${profile.profile_photo_url}" alt="${t('profile_photo')}" class="profile-avatar-img" />`;
+      } else {
+        avatar.textContent = '👤';
+      }
+    }
+    if (name) name.textContent = profile.full_name || t('agent_fallback');
+    if (meta) {
+      meta.textContent = [
+        localizeEnum(profile.agent_tag, 'agent_tag'),
+        localizeEnum(profile.work_type, 'work_type'),
+      ].filter(Boolean).join(' · ') || '—';
+    }
+    updateStatusPill(statusPill, profile.status);
+    if (grid) {
+      grid.innerHTML = `
+        <div class="agent-modal__item"><span>${t('application_id')}</span><strong>${profile.application_id || '—'}</strong></div>
+        <div class="agent-modal__item"><span>${t('territory')}</span><strong>${[profile.region, profile.zone, profile.woreda, profile.preferred_territory].filter(Boolean).join(' / ') || '—'}</strong></div>
+        <div class="agent-modal__item"><span>${t('work_type')}</span><strong>${localizeEnum(profile.work_type, 'work_type') || profile.work_type || '—'}</strong></div>
+        <div class="agent-modal__item"><span>${t('application_type_label')}</span><strong>${localizeEnum(profile.applicant_type, 'application_type') || profile.applicant_type || '—'}</strong></div>
+        <div class="agent-modal__item"><span>${t('performance_short')}</span><strong>${profile.performance_potential || '—'}</strong></div>
+      `;
+    }
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function closeAgentProfileModal() {
+    document.getElementById('agentProfileModal')?.classList.add('hidden');
   }
 
   // ── Init ──────────────────────────────────────────
