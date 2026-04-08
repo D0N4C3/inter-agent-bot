@@ -50,6 +50,10 @@ _BOT_SESSION_SQLITE_CLEANUP_INTERVAL = timedelta(minutes=5)
 _BOT_SESSION_SUPABASE_CACHE: dict[str, dict] = {}
 _BOT_SESSION_SUPABASE_CACHE_MAX = 5000
 _BOT_SESSION_SUPABASE_CACHE_TTL = timedelta(seconds=max(settings.bot_session_supabase_cache_ttl_seconds, 10))
+_BOT_PROCESSED_UPDATE_MEMORY_STORE: dict[str, dict] = {}
+_BOT_PROCESSED_UPDATE_DB_READY = False
+_BOT_PROCESSED_UPDATE_SQLITE_LAST_CLEANUP: datetime | None = None
+_BOT_PROCESSED_UPDATE_SQLITE_CLEANUP_INTERVAL = timedelta(minutes=5)
 _SUPABASE_CLIENT: Client | None = None
 _SUPABASE_CLIENT_LOCK = threading.Lock()
 
@@ -82,6 +86,11 @@ def _session_expiry_iso() -> str:
     return expiry.isoformat()
 
 
+def _processed_update_expiry_iso() -> str:
+    expiry = _utc_now() + timedelta(minutes=max(settings.bot_processed_update_ttl_minutes, 1))
+    return expiry.isoformat()
+
+
 def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -98,6 +107,10 @@ def _is_expired(expires_at: str | None) -> bool:
 
 def _sqlite_session_db_path() -> Path:
     return Path(settings.bot_session_sqlite_path)
+
+
+def _sqlite_processed_update_db_path() -> Path:
+    return Path(settings.bot_processed_update_sqlite_path)
 
 
 def _ensure_sqlite_session_db() -> None:
@@ -122,6 +135,29 @@ def _ensure_sqlite_session_db() -> None:
     _BOT_SESSION_DB_READY = True
 
 
+def _ensure_sqlite_processed_update_db() -> None:
+    global _BOT_PROCESSED_UPDATE_DB_READY
+    if _BOT_PROCESSED_UPDATE_DB_READY:
+        return
+    db_path = _sqlite_processed_update_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_processed_updates_local (
+                update_id TEXT PRIMARY KEY,
+                expires_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bot_processed_updates_local_expires ON bot_processed_updates_local(expires_at)"
+        )
+        conn.commit()
+    _BOT_PROCESSED_UPDATE_DB_READY = True
+
+
 def _maybe_cleanup_sqlite_expired_sessions(conn: sqlite3.Connection) -> None:
     global _BOT_SESSION_SQLITE_LAST_CLEANUP
     now = _utc_now()
@@ -132,6 +168,18 @@ def _maybe_cleanup_sqlite_expired_sessions(conn: sqlite3.Connection) -> None:
         return
     conn.execute("DELETE FROM bot_sessions_local WHERE expires_at <= ?", (now.isoformat(),))
     _BOT_SESSION_SQLITE_LAST_CLEANUP = now
+
+
+def _maybe_cleanup_sqlite_expired_processed_updates(conn: sqlite3.Connection) -> None:
+    global _BOT_PROCESSED_UPDATE_SQLITE_LAST_CLEANUP
+    now = _utc_now()
+    if (
+        _BOT_PROCESSED_UPDATE_SQLITE_LAST_CLEANUP is not None
+        and now - _BOT_PROCESSED_UPDATE_SQLITE_LAST_CLEANUP < _BOT_PROCESSED_UPDATE_SQLITE_CLEANUP_INTERVAL
+    ):
+        return
+    conn.execute("DELETE FROM bot_processed_updates_local WHERE expires_at <= ?", (now.isoformat(),))
+    _BOT_PROCESSED_UPDATE_SQLITE_LAST_CLEANUP = now
 
 
 def _clone_session_data(session_data: dict | None) -> dict:
@@ -539,6 +587,93 @@ def delete_bot_session(telegram_user_id: str) -> None:
     with _BOT_SESSION_LOCK:
         _BOT_SESSION_SUPABASE_CACHE.pop(telegram_user_id, None)
     _delete_bot_session_supabase(telegram_user_id)
+
+
+def mark_update_processed_if_new(update_id: int | str | None) -> bool:
+    if update_id is None:
+        return True
+
+    update_key = str(update_id)
+    backend = _bot_session_backend()
+    now = _utc_now()
+    expires_at = _processed_update_expiry_iso()
+
+    if backend == "memory":
+        with _BOT_SESSION_LOCK:
+            existing = _BOT_PROCESSED_UPDATE_MEMORY_STORE.get(update_key)
+            if existing and not _is_expired(existing.get("expires_at")):
+                return False
+            _BOT_PROCESSED_UPDATE_MEMORY_STORE[update_key] = {
+                "update_id": update_key,
+                "expires_at": expires_at,
+                "updated_at": now.isoformat(),
+            }
+            return True
+
+    if backend == "sqlite":
+        _ensure_sqlite_processed_update_db()
+        with sqlite3.connect(_sqlite_processed_update_db_path()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            inserted = conn.execute(
+                """
+                INSERT OR IGNORE INTO bot_processed_updates_local (update_id, expires_at, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (update_key, expires_at, now.isoformat()),
+            )
+            if inserted.rowcount == 1:
+                _maybe_cleanup_sqlite_expired_processed_updates(conn)
+                conn.commit()
+                return True
+
+            row = conn.execute(
+                "SELECT expires_at FROM bot_processed_updates_local WHERE update_id = ? LIMIT 1",
+                (update_key,),
+            ).fetchone()
+            if row and _is_expired(row[0]):
+                refreshed = conn.execute(
+                    """
+                    UPDATE bot_processed_updates_local
+                    SET expires_at = ?, updated_at = ?
+                    WHERE update_id = ? AND expires_at <= ?
+                    """,
+                    (expires_at, now.isoformat(), update_key, now.isoformat()),
+                )
+                _maybe_cleanup_sqlite_expired_processed_updates(conn)
+                conn.commit()
+                return refreshed.rowcount == 1
+
+            _maybe_cleanup_sqlite_expired_processed_updates(conn)
+            conn.commit()
+            return False
+
+    client = get_supabase()
+    payload = {
+        "update_id": update_key,
+        "expires_at": expires_at,
+        "updated_at": now.isoformat(),
+    }
+    try:
+        client.table("bot_processed_updates").insert(payload).execute()
+        return True
+    except APIError as exc:
+        if "duplicate" in str(exc).lower() or "23505" in str(exc):
+            result = (
+                client.table("bot_processed_updates")
+                .select("expires_at")
+                .eq("update_id", update_key)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                current_expires = result.data[0].get("expires_at")
+                if not _is_expired(current_expires):
+                    return False
+            client.table("bot_processed_updates").update(
+                {"expires_at": expires_at, "updated_at": now.isoformat()}
+            ).eq("update_id", update_key).execute()
+            return True
+        raise
 
 
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
