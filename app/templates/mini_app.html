@@ -382,7 +382,10 @@
   document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
 
   const tg = window.Telegram?.WebApp;
-  const tgUser = tg?.initDataUnsafe?.user || null;
+
+  function getTelegramUser() {
+    return tg?.initDataUnsafe?.user || null;
+  }
 
   function decodeTelegramInitData(rawValue) {
     const value = String(rawValue || '').trim();
@@ -429,6 +432,26 @@
     } catch (_) {
       return null;
     }
+  }
+
+  function getTelegramStartParam() {
+    const unsafeStartParam = String(tg?.initDataUnsafe?.start_param || '').trim();
+    if (unsafeStartParam) return unsafeStartParam;
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    const candidates = [
+      searchParams.get('tgWebAppStartParam'),
+      searchParams.get('startapp'),
+      searchParams.get('start_param'),
+      hashParams.get('tgWebAppStartParam'),
+      hashParams.get('startapp'),
+      hashParams.get('start_param'),
+    ];
+    for (const candidate of candidates) {
+      const value = String(candidate || '').trim();
+      if (value) return value;
+    }
+    return '';
   }
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
@@ -574,6 +597,9 @@
     const headers = Object.assign({}, options.headers || {});
     const initData = getTelegramInitData();
     if (initData) headers['X-Telegram-Init-Data'] = initData;
+    const startParam = getTelegramStartParam();
+    if (startParam) headers['X-Telegram-Start-Param'] = startParam;
+    const tgUser = getTelegramUser();
     const tgUserId =
       tgUser?.id ||
       getTelegramUserIdFromInitData() ||
@@ -1335,6 +1361,7 @@
       const data = await res.json();
       if (!data.ok) { setResult(data); return; }
       miniSession = data.session;
+      const tgUser = getTelegramUser();
       const label = miniSession.user?.first_name || tgUser?.first_name || t('agent_fallback');
       const userEl = document.getElementById('welcomeUser');
       if (userEl) userEl.textContent = label;
