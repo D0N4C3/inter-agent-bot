@@ -312,9 +312,21 @@ def mini_app_url_for_user(user_id: int | None, startapp: str | None = None) -> s
     return f"https://agent.interethiopia.com/mini-app?{urlencode(query_params)}"
 
 
+def mini_app_tab_url_for_user(user_id: int | None, tab: str) -> str:
+    sanitized_tab = (tab or "").strip().lower()
+    if sanitized_tab == "territories":
+        base_url = mini_app_url_for_user(user_id, startapp="territories")
+    elif sanitized_tab in {"agent", "dashboard"}:
+        base_url = mini_app_url_for_user(user_id, startapp="dashboard")
+    else:
+        base_url = mini_app_url_for_user(user_id)
+    query_suffix = urlencode({"tab": sanitized_tab, "telegram_user_id": str(user_id or "")})
+    return f"{base_url}&{query_suffix}"
+
+
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
     mini_app_url = mini_app_url_for_user(user_id)
-    territories_url = f"{mini_app_url_for_user(user_id, startapp='territories')}&tab=territories&telegram_user_id={user_id}"
+    territories_url = mini_app_tab_url_for_user(user_id, "territories")
     keyboard = [
         [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
@@ -427,7 +439,7 @@ async def send_mini_app_inline_launcher(
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     mini_app_url = mini_app_url_for_user(user_id=user_id, startapp=startapp)
-    territories_url = f"{mini_app_url_for_user(user_id=user_id, startapp='territories')}&tab=territories&telegram_user_id={user_id}"
+    territories_url = mini_app_tab_url_for_user(user_id, "territories")
     reply_markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=tr(user_id, "btn_open_mini_app"), web_app=WebAppInfo(url=mini_app_url))],
@@ -1006,6 +1018,13 @@ async def _telegram_webhook(update) -> dict:
                 await send_message(chat_id, trf(user_id, "status_found", status=status))
             else:
                 await send_message(chat_id, tr(user_id, "status_not_found"))
+            await send_message(
+                chat_id,
+                tr(user_id, "btn_open_mini_app"),
+                keyboard=[
+                    [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_tab_url_for_user(user_id, "agent")}],
+                ],
+            )
             return _log_route("status_lookup")
 
         if text and text.startswith("/territory"):
