@@ -5,6 +5,7 @@ import hmac
 import json
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl
+from urllib.parse import unquote
 
 from flask import abort, request, session
 
@@ -112,9 +113,17 @@ def mini_app_session(required: bool = True) -> dict | None:
     ]
     session = None
     for candidate in init_data_candidates:
+        if not candidate:
+            continue
         session = verify_telegram_init_data(candidate)
         if session:
             break
+        # Some entry points pass tgWebAppData URL-encoded.
+        decoded_once = unquote(candidate)
+        if decoded_once != candidate:
+            session = verify_telegram_init_data(decoded_once)
+            if session:
+                break
 
     if not session:
         fallback_user_id = _fallback_telegram_user_id()

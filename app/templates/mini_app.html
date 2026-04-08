@@ -385,36 +385,50 @@
   const tgUser = tg?.initDataUnsafe?.user || null;
 
   function decodeTelegramInitData(rawValue) {
-    let value = String(rawValue || '').trim();
+    const value = String(rawValue || '').trim();
     if (!value) return '';
-    // Telegram can pass init data in encoded form when Mini App is opened
-    // from inline buttons. Try decoding repeatedly (up to 2 rounds).
-    for (let i = 0; i < 2; i += 1) {
-      if (!value.includes('%')) break;
-      try {
-        const decoded = decodeURIComponent(value);
-        if (!decoded || decoded === value) break;
-        value = decoded;
-      } catch (_) {
-        break;
-      }
+    try {
+      return decodeURIComponent(value);
+    } catch (_) {
+      return value;
     }
-    return value;
   }
 
   function getTelegramInitData() {
-    const initDataFromSdk = decodeTelegramInitData(tg?.initData);
+    const initDataFromSdk = String(tg?.initData || '').trim();
     if (initDataFromSdk) return initDataFromSdk;
 
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
-    return (
-      decodeTelegramInitData(searchParams.get('tg_init_data')) ||
-      decodeTelegramInitData(searchParams.get('tgWebAppData')) ||
-      decodeTelegramInitData(hashParams.get('tg_init_data')) ||
-      decodeTelegramInitData(hashParams.get('tgWebAppData')) ||
-      ''
-    );
+    const candidates = [
+      searchParams.get('tg_init_data'),
+      searchParams.get('tgWebAppData'),
+      hashParams.get('tg_init_data'),
+      hashParams.get('tgWebAppData'),
+    ];
+    for (const candidate of candidates) {
+      const raw = String(candidate || '').trim();
+      if (!raw) continue;
+      if (raw.includes('hash=')) return raw;
+      const decoded = decodeTelegramInitData(raw);
+      if (decoded) return decoded;
+    }
+    return '';
+  }
+
+  function getTelegramUserIdFromInitData() {
+    const initData = getTelegramInitData();
+    if (!initData) return null;
+    try {
+      const params = new URLSearchParams(initData);
+      const userRaw = params.get('user');
+      if (!userRaw) return null;
+      const user = JSON.parse(userRaw);
+      const userId = String(user?.id || '').trim();
+      return userId || null;
+    } catch (_) {
+      return null;
+    }
   }
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
@@ -560,7 +574,11 @@
     const headers = Object.assign({}, options.headers || {});
     const initData = getTelegramInitData();
     if (initData) headers['X-Telegram-Init-Data'] = initData;
-    const tgUserId = tgUser?.id || new URLSearchParams(window.location.search).get('uid');
+    const tgUserId =
+      tgUser?.id ||
+      getTelegramUserIdFromInitData() ||
+      miniSession?.telegram_user_id ||
+      new URLSearchParams(window.location.search).get('uid');
     if (tgUserId) headers['X-Telegram-User-Id'] = String(tgUserId);
     return fetch(url, Object.assign({}, options, { headers }));
   }
@@ -1253,8 +1271,18 @@
 
   // ── Rankings ──────────────────────────────────────
   function drawRankList(title, emoji, items, valueKey, valueSuffix = '') {
+    const sectionTitle = `<div class="rank-title">${emoji} ${title}</div>`;
     if (!items?.length) {
-      return `<p class="muted" style="margin:8px 0">${title}: ${t('no_data_yet')}</p>`;
+      return `
+        <div class="rank-section rank-section-empty">
+          ${sectionTitle}
+          <div class="rank-empty-state">
+            <div class="rank-empty-state__icon">${emoji}</div>
+            <div class="rank-empty-state__title">${t('no_data_yet')}</div>
+            <div class="rank-empty-state__sub">${t('rankings_sub')}</div>
+          </div>
+        </div>
+      `;
     }
     const rows = items.map((item, idx) => `
       <div class="rank-item">
@@ -1264,8 +1292,10 @@
       </div>
     `).join('');
     return `
-      <div class="rank-title">${emoji} ${title}</div>
-      <div class="rank-list">${rows}</div>
+      <div class="rank-section">
+        ${sectionTitle}
+        <div class="rank-list">${rows}</div>
+      </div>
     `;
   }
 
