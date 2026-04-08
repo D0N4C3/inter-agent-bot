@@ -129,13 +129,18 @@ def get_session(user_id: int | None) -> dict:
     session = get_bot_session(str(user_id)) or {}
     with SESSION_CACHE_LOCK:
         if len(SESSION_CACHE) > 5000:
-            SESSION_CACHE.clear()
+            oldest_keys = list(SESSION_CACHE.keys())[:500]
+            for key in oldest_keys:
+                SESSION_CACHE.pop(key, None)
         SESSION_CACHE[user_id] = dict(session)
     return session
 
 
 def set_session(user_id: int, data: dict) -> None:
-    upsert_bot_session(str(user_id), data)
+    try:
+        upsert_bot_session(str(user_id), data)
+    except Exception:
+        logger.exception("set_session.db_write_failed user_id=%s", user_id)
     with SESSION_CACHE_LOCK:
         SESSION_CACHE[user_id] = dict(data)
 
@@ -455,7 +460,7 @@ def normalize_phone(phone: str) -> str:
 
 def phone_is_valid(phone: str) -> bool:
     normalized = normalize_phone(phone)
-    return bool(re.fullmatch(r"\+251[79]\d{8}", normalized))
+    return bool(re.fullmatch(r"\+251[0-9]\d{8}", normalized))
 
 
 async def ask_next(chat_id: int, user_id: int) -> None:
@@ -568,6 +573,7 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
 async def process_registration_input(chat_id: int, user_id: int, text: str | None, message_obj) -> None:
     session = get_session(user_id)
     if not session:
+        logger.warning("process_registration_input.empty_session user_id=%s text=%r", user_id, text)
         await send_message(chat_id, tr(user_id, "start_prompt"))
         return
     field, _ = QUESTION_FLOW[session["step_index"]]
