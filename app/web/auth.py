@@ -90,8 +90,16 @@ def verify_telegram_init_data(init_data: str | None) -> dict | None:
 
 
 def mini_app_session(required: bool = True) -> dict | None:
-    init_data = request.headers.get("x-telegram-init-data") or request.args.get("tg_init_data")
-    session = verify_telegram_init_data(init_data)
+    init_data_candidates = [
+        request.headers.get("x-telegram-init-data"),
+        request.args.get("tg_init_data"),
+        request.args.get("tgWebAppData"),
+    ]
+    session = None
+    for candidate in init_data_candidates:
+        session = verify_telegram_init_data(candidate)
+        if session:
+            break
     if required and not session:
         abort(401, description="Telegram mini app authentication failed")
     return session

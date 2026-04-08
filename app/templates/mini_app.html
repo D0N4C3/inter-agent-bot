@@ -383,11 +383,38 @@
 
   const tg = window.Telegram?.WebApp;
   const tgUser = tg?.initDataUnsafe?.user || null;
+
+  function decodeTelegramInitData(rawValue) {
+    let value = String(rawValue || '').trim();
+    if (!value) return '';
+    // Telegram can pass init data in encoded form when Mini App is opened
+    // from inline buttons. Try decoding repeatedly (up to 2 rounds).
+    for (let i = 0; i < 2; i += 1) {
+      if (!value.includes('%')) break;
+      try {
+        const decoded = decodeURIComponent(value);
+        if (!decoded || decoded === value) break;
+        value = decoded;
+      } catch (_) {
+        break;
+      }
+    }
+    return value;
+  }
+
   function getTelegramInitData() {
-    const initDataFromSdk = tg?.initData;
+    const initDataFromSdk = decodeTelegramInitData(tg?.initData);
     if (initDataFromSdk) return initDataFromSdk;
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tg_init_data') || params.get('tgWebAppData') || '';
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    return (
+      decodeTelegramInitData(searchParams.get('tg_init_data')) ||
+      decodeTelegramInitData(searchParams.get('tgWebAppData')) ||
+      decodeTelegramInitData(hashParams.get('tg_init_data')) ||
+      decodeTelegramInitData(hashParams.get('tgWebAppData')) ||
+      ''
+    );
   }
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
