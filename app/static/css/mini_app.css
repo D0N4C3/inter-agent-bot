@@ -475,6 +475,16 @@ select option { background: #111e32; color: #fff; }
   display: flex; align-items: center; gap: 7px;
   color: #fff;
 }
+.rank-section {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px;
+  background: linear-gradient(150deg, rgba(16, 29, 50, 0.7), rgba(12, 21, 37, 0.65));
+  margin-bottom: 10px;
+}
+.rank-section .rank-title {
+  margin-top: 0;
+}
 .rank-list { display: flex; flex-direction: column; gap: 6px; }
 .rank-item {
   display: flex; align-items: center; gap: 12px;
@@ -498,6 +508,25 @@ select option { background: #111e32; color: #fff; }
   display: inline-block; padding: 3px 10px;
   border-radius: 999px; font-size: 12px; font-weight: 700;
   background: var(--brand-dim); color: var(--brand);
+}
+.rank-empty-state {
+  border: 1px dashed rgba(255,255,255,0.16);
+  border-radius: var(--r-md);
+  padding: 14px 12px;
+  text-align: center;
+}
+.rank-empty-state__icon {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.rank-empty-state__title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.rank-empty-state__sub {
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: 12px;
 }
 
 /* ─── STATUS / TOAST ─────────────────────────────── */
