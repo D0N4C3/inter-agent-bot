@@ -314,12 +314,14 @@ def mini_app_url_for_user(user_id: int | None, startapp: str | None = None) -> s
 
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
     mini_app_url = mini_app_url_for_user(user_id)
+    territories_url = f"{mini_app_url}&tab=territories&telegram_user_id={user_id}"
     keyboard = [
         [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
         [tr(user_id, "btn_register_installer")],
         [tr(user_id, "btn_register_both")],
         [tr(user_id, "btn_check_status")],
+        [{"text": tr(user_id, "btn_open_territories"), "web_app": territories_url}],
         [tr(user_id, "btn_change_language")],
     ]
     return keyboard
