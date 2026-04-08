@@ -302,9 +302,18 @@ def localized_values(key: str) -> set[str]:
     return {I18N.get(lang, {}).get(key, key) for lang in SUPPORTED_LANGUAGES}
 
 
+def mini_app_url_for_user(user_id: int | None, startapp: str | None = None) -> str:
+    language = get_session(user_id).get("language", "en") if user_id is not None else "en"
+    query_params = {"lang": language}
+    if user_id is not None:
+        query_params["uid"] = str(user_id)
+    elif startapp:
+        query_params["startapp"] = startapp
+    return f"https://agent.interethiopia.com/mini-app?{urlencode(query_params)}"
+
+
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
-    language = get_session(user_id).get("language", "en")
-    mini_app_url = f"https://agent.interethiopia.com/mini-app?{urlencode({'lang': language, 'uid': str(user_id)})}"
+    mini_app_url = mini_app_url_for_user(user_id)
     keyboard = [
         [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
@@ -404,6 +413,23 @@ async def send_message(chat_id: int, text: str, keyboard: list[list[str | dict[s
             resize_keyboard=True,
             one_time_keyboard=False,
         )
+    await create_telegram_bot().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+
+
+async def send_mini_app_inline_launcher(
+    chat_id: int,
+    user_id: int,
+    text: str,
+    startapp: str | None = None,
+) -> None:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+    mini_app_url = mini_app_url_for_user(user_id=user_id, startapp=startapp)
+    reply_markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=tr(user_id, "btn_open_mini_app"), web_app=WebAppInfo(url=mini_app_url))]
+        ]
+    )
     await create_telegram_bot().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
@@ -980,7 +1006,11 @@ async def _telegram_webhook(update) -> dict:
 
         if text and text.startswith("/territory"):
             log_non_registration_route(user_id, text, "territory_removed", in_reg)
-            await send_message(chat_id, "Territory availability check has moved to the Mini App Territories map.")
+            await send_mini_app_inline_launcher(
+                chat_id,
+                user_id,
+                "Territory availability check has moved to the Mini App Territories map.",
+            )
             return _log_route("territory_removed")
 
         if text in {"/admin", "/adminmenu"}:
