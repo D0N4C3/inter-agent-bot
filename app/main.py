@@ -133,12 +133,35 @@ def drop_registration_session(user_id: int) -> None:
     delete_bot_session(str(user_id))
 
 
+def _is_production_mode() -> bool:
+    return any(
+        os.getenv(name, "").strip().lower() == "production"
+        for name in ("FLASK_ENV", "APP_ENV", "ENV")
+    )
+
+
+def guard_stateless_memory_session_backend() -> None:
+    backend = (settings.bot_session_backend or "memory").strip().lower()
+    if backend != "memory":
+        return
+
+    message = (
+        "BOT_SESSION_BACKEND=memory is unsafe for Telegram webhooks across workers. "
+        "Use BOT_SESSION_BACKEND=sqlite for single-host deployments or "
+        "BOT_SESSION_BACKEND=supabase for multi-host deployments."
+    )
+    if _is_production_mode():
+        raise RuntimeError(message)
+    logger.critical(message)
+
+
 logger.info(
     "app-startup worker=%s pid=%s boot_timestamp=%s",
     WORKER_IDENTIFIER,
     PROCESS_PID,
     BOOT_TIMESTAMP,
 )
+guard_stateless_memory_session_backend()
 
 SUPPORTED_LANGUAGES = {"en", "am", "om", "ti"}
 ETHIOPIA_REGIONS = [

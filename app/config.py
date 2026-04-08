@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     mini_app_primary_color: str = "#165dff"
     google_maps_sdk_key: str | None = None
     territory_suggestion_limit: int = 5
-    bot_session_backend: str = "memory"
+    bot_session_backend: str = "sqlite"
     bot_session_ttl_minutes: int = 90
     bot_session_sqlite_path: str = "data/bot_sessions.sqlite3"
     bot_session_supabase_cache_ttl_seconds: int = 120
