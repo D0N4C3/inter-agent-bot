@@ -1072,6 +1072,7 @@ def get_agent_dashboard(telegram_user_id: str) -> dict | None:
             "business_type": application.get("business_type"),
             "business_years": application.get("business_years"),
             "business_customers_weekly": application.get("business_customers_weekly"),
+            "profile_photo_url": application.get("profile_photo_url"),
         },
         "territory": {
             "region": application["region"],

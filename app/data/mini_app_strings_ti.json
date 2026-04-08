@@ -88,8 +88,8 @@
   "status_approved": "ጸዲቑ",
   "status_rejected": "ተነጺጉ",
   "status_pending": "ኣብጽባቐ",
-  "agent_tag_sales": "መሸጣ",
-  "agent_tag_sales_agent": "መሸጣ",
+  "agent_tag_sales": "ወኪል መሸጣ",
+  "agent_tag_sales_agent": "ወኪል መሸጣ",
   "agent_tag_installer": "ገጣሚ",
   "agent_tag_installer_agent": "ገጣሚ",
   "agent_tag_hybrid": "ክልቲኡ",
@@ -148,5 +148,6 @@
   "update_profile": "ፕሮፋይል ኣሐድስ",
   "save_profile": "ፕሮፋይል ዕቀብ",
   "preferred_territory_label": "ዝምረጽ ዞባ",
-  "rankings_sub": "ብመሸጣን ገጠማን ብሉጽ ኣፈጻጽማ ዘለዎም ወኪላት።"
+  "rankings_sub": "ብመሸጣን ገጠማን ብሉጽ ኣፈጻጽማ ዘለዎም ወኪላት።",
+  "profile_photo_required_label": "ስእሊ ፕሮፋይል"
 }

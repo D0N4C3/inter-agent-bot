@@ -196,7 +196,7 @@
               <input id="id_file_back" type="file" accept="image/*,.pdf" />
             </div>
             <div class="field">
-              <label data-i18n="profile_photo_optional_label">Profile photo (optional)</label>
+              <label data-i18n="profile_photo_required_label">Profile photo</label>
               <input id="profile_photo" type="file" accept="image/*" />
             </div>
           </div>
@@ -243,7 +243,7 @@
 
       <div id="agentProfileCard" style="display:none">
         <div class="profile-card">
-          <div class="profile-avatar">👤</div>
+          <div class="profile-avatar" id="profileCardAvatar">👤</div>
           <div class="profile-info">
             <div class="profile-name" id="profileCardName">—</div>
             <div class="profile-meta" id="profileCardMeta">—</div>
@@ -1029,7 +1029,7 @@
     const [idFrontUrl, idBackUrl, profilePhotoUrl] = await Promise.all([
       uploadFile('id_file_front', true),
       uploadFile('id_file_back', true),
-      uploadFile('profile_photo', false),
+      uploadFile('profile_photo', true),
     ]);
     return apiFetch('/api/mini-app/register', {
       method: 'POST',
@@ -1138,6 +1138,7 @@
       // Update profile card
       const cardName = document.getElementById('profileCardName');
       const cardMeta = document.getElementById('profileCardMeta');
+      const cardAvatar = document.getElementById('profileCardAvatar');
       const cardEl   = document.getElementById('agentProfileCard');
       if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || t('agent_fallback');
       if (cardMeta) {
@@ -1146,6 +1147,13 @@
         cardMeta.textContent = [localizedTag, localizedStatus].filter(Boolean).join(' · ');
       }
       if (cardEl)   cardEl.style.display = '';
+      if (cardAvatar) {
+        if (profile.profile_photo_url) {
+          cardAvatar.innerHTML = `<img src="${profile.profile_photo_url}" alt="${t('profile_photo')}" class="profile-avatar-img" />`;
+        } else {
+          cardAvatar.textContent = '👤';
+        }
+      }
       const statusPill = document.getElementById('profileStatusPill');
       if (statusPill) {
         statusPill.textContent = localizeEnum(profile.status, 'status') || t('submitted');
@@ -1400,6 +1408,12 @@
       await loadDashboard();
       if (map) await loadTerritories();
       await loadRankings();
+      const requestedTab =
+        new URLSearchParams(window.location.search).get('tab') ||
+        (getTelegramStartParam().toLowerCase().includes('territor') ? 'territories' : '');
+      if (requestedTab === 'territories') {
+        switchTab('territories');
+      }
     } catch(e) {
       console.warn(t('init_error'), e);
     }

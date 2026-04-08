@@ -88,8 +88,8 @@
   "status_approved": "Mirkanaa'eera",
   "status_rejected": "Kufaa ta'eera",
   "status_pending": "Eeggannaa irra",
-  "agent_tag_sales": "Gurgurtaa",
-  "agent_tag_sales_agent": "Gurgurtaa",
+  "agent_tag_sales": "Agentii Gurgurtaa",
+  "agent_tag_sales_agent": "Agentii Gurgurtaa",
   "agent_tag_installer": "Galchaa",
   "agent_tag_installer_agent": "Galchaa",
   "agent_tag_hybrid": "Walmakaa",
@@ -148,5 +148,6 @@
   "update_profile": "Piroofaayilii Haaromsi",
   "save_profile": "Piroofaayilii Olkaahi",
   "preferred_territory_label": "Kutaa Hojii Filatamaa",
-  "rankings_sub": "Agentoota gurgurtaa fi galchaadhaan raawwii olaanoo qaban."
+  "rankings_sub": "Agentoota gurgurtaa fi galchaadhaan raawwii olaanoo qaban.",
+  "profile_photo_required_label": "Suuraa Piroofaayilii"
 }

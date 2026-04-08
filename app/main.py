@@ -425,9 +425,11 @@ async def send_mini_app_inline_launcher(
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     mini_app_url = mini_app_url_for_user(user_id=user_id, startapp=startapp)
+    territories_url = f"{mini_app_url}&tab=territories&telegram_user_id={user_id}"
     reply_markup = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=tr(user_id, "btn_open_mini_app"), web_app=WebAppInfo(url=mini_app_url))]
+            [InlineKeyboardButton(text=tr(user_id, "btn_open_mini_app"), web_app=WebAppInfo(url=mini_app_url))],
+            [InlineKeyboardButton(text=tr(user_id, "btn_open_territories"), web_app=WebAppInfo(url=territories_url))],
         ]
     )
     await create_telegram_bot().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)

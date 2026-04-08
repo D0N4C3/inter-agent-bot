@@ -77,7 +77,7 @@ def register_mini_app_routes(blueprint: Blueprint) -> None:
     def mini_app_register() -> dict:
         session = mini_app_session(required=True)
         payload = request.get_json(silent=True) or {}
-        required = ["full_name", "phone", "region", "zone", "woreda", "preferred_territory"]
+        required = ["full_name", "phone", "region", "zone", "woreda", "preferred_territory", "profile_photo_url"]
         missing = [field for field in required if not payload.get(field)]
         if missing:
             return {"ok": False, "error": f"Missing fields: {', '.join(missing)}"}, 400
