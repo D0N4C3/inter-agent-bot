@@ -1312,7 +1312,6 @@
     const installs = perfRows.filter(item => item.event_type === 'installer_job_completed').reduce((sum, item) => sum + Number(item.event_value || 0), 0);
     container.innerHTML = `
       <div class="highlight-card"><div class="highlight-label">${t('application_id')}</div><div class="highlight-value">${profile.application_id || '—'}</div></div>
-      <div class="highlight-card"><div class="highlight-label">${t('field_status') || 'Status'}</div><div class="highlight-value">${localizeEnum(profile.status, 'status') || profile.status || '—'}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('territory')}</div><div class="highlight-value">${[territory.region, territory.zone, territory.woreda].filter(Boolean).join(' / ') || '—'}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('training_progress')}</div><div class="highlight-value">${trainingCompleted}/${trainingTotal || 0}</div></div>
       <div class="highlight-card"><div class="highlight-label">${t('sales_logged')}</div><div class="highlight-value">${sales}</div></div>
