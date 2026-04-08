@@ -12,7 +12,7 @@ import json
 import threading
 from collections import Counter
 from multiprocessing import current_process
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlencode
 from datetime import datetime, timezone
 from html import escape
 
@@ -304,7 +304,7 @@ def localized_values(key: str) -> set[str]:
 
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
     language = get_session(user_id).get("language", "en")
-    mini_app_url = f"https://agent.interethiopia.com/mini-app?lang={language}"
+    mini_app_url = f"https://agent.interethiopia.com/mini-app?{urlencode({'lang': language, 'uid': str(user_id)})}"
     keyboard = [
         [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
