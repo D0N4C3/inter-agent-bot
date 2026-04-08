@@ -382,8 +382,13 @@
   document.documentElement.style.setProperty('--brand', '{{ mini_app_primary_color }}');
 
   const tg = window.Telegram?.WebApp;
-  const tgInitData = tg?.initData || '';
   const tgUser = tg?.initDataUnsafe?.user || null;
+  function getTelegramInitData() {
+    const initDataFromSdk = tg?.initData;
+    if (initDataFromSdk) return initDataFromSdk;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tg_init_data') || params.get('tgWebAppData') || '';
+  }
   let miniSession = null;
   const defaultLanguage = '{{ default_lang }}';
   const supportedLanguages = ['en', 'am', 'om', 'ti'];
@@ -526,7 +531,8 @@
   // ── API fetch helper ───────────────────────────────
   async function apiFetch(url, options = {}) {
     const headers = Object.assign({}, options.headers || {});
-    if (tgInitData) headers['X-Telegram-Init-Data'] = tgInitData;
+    const initData = getTelegramInitData();
+    if (initData) headers['X-Telegram-Init-Data'] = initData;
     return fetch(url, Object.assign({}, options, { headers }));
   }
 
