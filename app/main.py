@@ -57,6 +57,7 @@ from app.services import (
     create_performance_event,
     list_open_territories,
     list_woreda_regions,
+    mark_update_processed_if_new,
 )
 
 app = Flask(__name__)
@@ -819,6 +820,7 @@ async def _telegram_webhook(update) -> dict:
     trace_id = secrets.token_hex(4)
     user_id: int | None = None
     chat_id: int | None = None
+    update_id = getattr(update, "update_id", None)
 
     def _log_route(route: str) -> dict:
         logger.info(
@@ -844,6 +846,13 @@ async def _telegram_webhook(update) -> dict:
         message = message_obj.model_dump(mode="python")
         if not message:
             return _log_route("empty_message")
+
+        if not mark_update_processed_if_new(update_id):
+            logger.info(
+                "telegram_webhook_duplicate_update %s",
+                json.dumps({"trace_id": trace_id, "update_id": update_id}, ensure_ascii=False, separators=(",", ":")),
+            )
+            return _log_route("duplicate_update")
 
         chat_id = message_obj.chat.id if message_obj.chat else None
         user_id = message_obj.from_user.id if message_obj.from_user else None

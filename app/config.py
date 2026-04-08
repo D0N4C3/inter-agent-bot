@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     bot_session_ttl_minutes: int = 90
     bot_session_sqlite_path: str = "data/bot_sessions.sqlite3"
     bot_session_supabase_cache_ttl_seconds: int = 120
+    bot_processed_update_ttl_minutes: int = 10
+    bot_processed_update_sqlite_path: str = "data/bot_processed_updates.sqlite3"
 
     @field_validator(
         "telegram_bot_token",
