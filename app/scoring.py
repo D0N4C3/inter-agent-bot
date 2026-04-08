@@ -48,13 +48,28 @@ def score_application(payload: dict) -> ScoreResult:
 
     applicant_type = payload.get("applicant_type")
 
-    if sales_score >= 75 and installer_score >= 75:
-        flag = "Hybrid"
-    elif applicant_type == "sales_only" and sales_score >= 70:
-        flag = "Strong Sales Candidate"
-    elif applicant_type == "installer_only" and installer_score >= 70:
-        flag = "Strong Installer Candidate"
-    elif applicant_type == "sales_installer" and max(sales_score, installer_score) >= 65:
+    if applicant_type == "sales_only":
+        if sales_score >= 70:
+            flag = "Strong Sales Candidate"
+        else:
+            flag = "Manual Review"
+    elif applicant_type == "installer_only":
+        if installer_score >= 70:
+            flag = "Strong Installer Candidate"
+        else:
+            flag = "Manual Review"
+    elif applicant_type == "sales_installer":
+        if sales_score >= 75 and installer_score >= 75:
+            flag = "Hybrid"
+        elif max(sales_score, installer_score) >= 65:
+            flag = "Hybrid"
+        elif sales_score >= 70:
+            flag = "Strong Sales Candidate"
+        elif installer_score >= 70:
+            flag = "Strong Installer Candidate"
+        else:
+            flag = "Manual Review"
+    elif sales_score >= 70 and installer_score >= 70:
         flag = "Hybrid"
     elif sales_score >= 70:
         flag = "Strong Sales Candidate"
