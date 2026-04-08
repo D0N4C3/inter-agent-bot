@@ -14,7 +14,6 @@ create table if not exists inter_agent_apply.agent_applications (
   region text not null,
   zone text not null,
   woreda text not null,
-  kebele text not null,
   village text not null,
   experience boolean not null,
   experience_years integer not null default 0,
@@ -74,7 +73,6 @@ create table if not exists inter_agent_apply.territories (
   region text not null,
   zone text not null,
   woreda text not null,
-  kebele text not null,
   village text not null,
   latitude double precision,
   longitude double precision,
@@ -84,7 +82,7 @@ create table if not exists inter_agent_apply.territories (
 );
 
 create unique index if not exists uq_territories_location
-  on inter_agent_apply.territories(region, zone, woreda, kebele, village);
+  on inter_agent_apply.territories(region, zone, woreda, village);
 
 create unique index if not exists uq_territories_assigned_application
   on inter_agent_apply.territories(assigned_application_id)

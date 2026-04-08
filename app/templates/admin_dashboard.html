@@ -158,7 +158,6 @@
             <option value="__custom__">+ Add custom woreda</option>
           </select>
           <input id="custom-woreda" name="woreda_custom" placeholder="Type custom woreda" style="display:none;" />
-          <input name="kebele" placeholder="Kebele" required />
           <input name="village" placeholder="Village" required />
           <select name="availability_status" class="premium-select">{% for s in valid_territory_availability %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
           <button class="btn btn-primary" type="submit">Create Territory</button>

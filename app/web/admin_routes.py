@@ -190,7 +190,6 @@ def register_admin_routes(blueprint: Blueprint, onboarding_callback) -> None:
             region=str(form.get("region") or ""),
             zone=str(form.get("zone") or ""),
             woreda=str(form.get("woreda") or ""),
-            kebele=str(form.get("kebele") or ""),
             village=str(form.get("village") or ""),
             latitude=float(form.get("latitude")) if form.get("latitude") else None,
             longitude=float(form.get("longitude")) if form.get("longitude") else None,

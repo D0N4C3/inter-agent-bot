@@ -549,7 +549,6 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
         "region": answers["region"],
         "zone": answers["zone"],
         "woreda": answers["woreda"],
-        "kebele": "N/A",
         "village": answers["preferred_territory"],
         "experience": answers["experience"],
         "experience_years": answers["experience_years"],
