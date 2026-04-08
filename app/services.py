@@ -2,7 +2,6 @@ import smtplib
 import sqlite3
 import json
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from math import asin, cos, radians, sin, sqrt
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
@@ -51,7 +50,6 @@ _BOT_SESSION_SQLITE_CLEANUP_INTERVAL = timedelta(minutes=5)
 _BOT_SESSION_SUPABASE_CACHE: dict[str, dict] = {}
 _BOT_SESSION_SUPABASE_CACHE_MAX = 5000
 _BOT_SESSION_SUPABASE_CACHE_TTL = timedelta(seconds=max(settings.bot_session_supabase_cache_ttl_seconds, 10))
-_BOT_SESSION_SUPABASE_SYNC_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bot-session-sync")
 _SUPABASE_CLIENT: Client | None = None
 _SUPABASE_CLIENT_LOCK = threading.Lock()
 
@@ -509,8 +507,7 @@ def upsert_bot_session(telegram_user_id: str, session_data: dict) -> dict:
             "dirty": True,
             "version": version,
         }
-    _BOT_SESSION_SUPABASE_SYNC_POOL.submit(
-        _write_bot_session_supabase,
+    _write_bot_session_supabase(
         telegram_user_id,
         _clone_session_data(session_data),
         version,
@@ -534,7 +531,7 @@ def delete_bot_session(telegram_user_id: str) -> None:
 
     with _BOT_SESSION_LOCK:
         _BOT_SESSION_SUPABASE_CACHE.pop(telegram_user_id, None)
-    _BOT_SESSION_SUPABASE_SYNC_POOL.submit(_delete_bot_session_supabase, telegram_user_id)
+    _delete_bot_session_supabase(telegram_user_id)
 
 
 def list_open_territories(region: str | None = None, zone: str | None = None, woreda: str | None = None) -> list[dict]:
