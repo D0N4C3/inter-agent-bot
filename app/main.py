@@ -572,7 +572,11 @@ async def finalize_application(chat_id: int, user_id: int) -> None:
     save_application(record)
     send_notification_email(record)
     send_admin_telegram_alert(record)
-    await send_message(chat_id, f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}")
+    await send_message(
+        chat_id,
+        f"{tr(user_id, 'submitted')}\n{tr(user_id, 'timeline')}",
+        keyboard=start_keyboard_for_user(user_id),
+    )
     drop_registration_session(user_id)
 
 
@@ -674,7 +678,11 @@ async def process_registration_input(chat_id: int, user_id: int, text: str | Non
     elif field == "terms":
         if value.lower() in {"cancel", "ሰርዝ"}:
             drop_registration_session(user_id)
-            await send_message(chat_id, tr(user_id, "application_cancelled"))
+            await send_message(
+                chat_id,
+                tr(user_id, "application_cancelled"),
+                keyboard=start_keyboard_for_user(user_id),
+            )
             return
         if value.lower() not in {"i agree", "እስማማለሁ"}:
             await send_message(chat_id, tr(user_id, "terms_required"))

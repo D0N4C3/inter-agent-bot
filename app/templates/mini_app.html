@@ -560,6 +560,8 @@
     const headers = Object.assign({}, options.headers || {});
     const initData = getTelegramInitData();
     if (initData) headers['X-Telegram-Init-Data'] = initData;
+    const tgUserId = tgUser?.id;
+    if (tgUserId) headers['X-Telegram-User-Id'] = String(tgUserId);
     return fetch(url, Object.assign({}, options, { headers }));
   }
 
