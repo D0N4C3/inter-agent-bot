@@ -98,12 +98,34 @@ def _fallback_telegram_user_id() -> str | None:
         or request.args.get("telegram_user_id")
         or request.args.get("uid")
     )
-    if not candidate:
+    if candidate:
+        telegram_user_id = str(candidate).strip()
+        if telegram_user_id.isdigit():
+            return telegram_user_id
+
+    start_param_candidate = (
+        request.headers.get("x-telegram-start-param")
+        or request.args.get("tgWebAppStartParam")
+        or request.args.get("startapp")
+        or request.args.get("start_param")
+    )
+    if not start_param_candidate:
         return None
-    telegram_user_id = str(candidate).strip()
-    if not telegram_user_id.isdigit():
+
+    start_param = str(start_param_candidate).strip()
+    if not start_param:
         return None
-    return telegram_user_id
+
+    if start_param.isdigit():
+        return start_param
+
+    for prefix in ("uid_", "uid:", "user_", "user:"):
+        if start_param.startswith(prefix):
+            suffix = start_param[len(prefix) :].strip()
+            if suffix.isdigit():
+                return suffix
+
+    return None
 
 def mini_app_session(required: bool = True) -> dict | None:
     init_data_candidates = [
