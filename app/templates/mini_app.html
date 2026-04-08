@@ -1143,8 +1143,7 @@
       if (cardName) cardName.textContent = profile.full_name || data.dashboard.full_name || t('agent_fallback');
       if (cardMeta) {
         const localizedTag = localizeEnum(profile.agent_tag, 'agent_tag');
-        const localizedStatus = localizeEnum(profile.status || data.dashboard.status, 'status');
-        cardMeta.textContent = [localizedTag, localizedStatus].filter(Boolean).join(' · ');
+        cardMeta.textContent = localizedTag || '—';
       }
       if (cardEl)   cardEl.style.display = '';
       if (cardAvatar) {
