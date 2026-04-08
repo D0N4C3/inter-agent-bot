@@ -307,14 +307,14 @@ def mini_app_url_for_user(user_id: int | None, startapp: str | None = None) -> s
     query_params = {"lang": language}
     if user_id is not None:
         query_params["uid"] = str(user_id)
-    elif startapp:
+    if startapp:
         query_params["startapp"] = startapp
     return f"https://agent.interethiopia.com/mini-app?{urlencode(query_params)}"
 
 
 def start_keyboard_for_user(user_id: int) -> list[list[str | dict[str, str]]]:
     mini_app_url = mini_app_url_for_user(user_id)
-    territories_url = f"{mini_app_url}&tab=territories&telegram_user_id={user_id}"
+    territories_url = f"{mini_app_url_for_user(user_id, startapp='territories')}&tab=territories&telegram_user_id={user_id}"
     keyboard = [
         [{"text": tr(user_id, "btn_open_mini_app"), "web_app": mini_app_url}],
         [tr(user_id, "btn_register_sales")],
@@ -427,7 +427,7 @@ async def send_mini_app_inline_launcher(
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     mini_app_url = mini_app_url_for_user(user_id=user_id, startapp=startapp)
-    territories_url = f"{mini_app_url}&tab=territories&telegram_user_id={user_id}"
+    territories_url = f"{mini_app_url_for_user(user_id=user_id, startapp='territories')}&tab=territories&telegram_user_id={user_id}"
     reply_markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=tr(user_id, "btn_open_mini_app"), web_app=WebAppInfo(url=mini_app_url))],
